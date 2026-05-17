@@ -106,7 +106,7 @@ const copy = {
     animationTitle: "动画模块",
     animationIntro: "这里将用于后续角色动作、帧序列和 sprite sheet 生成。",
     portfolioTitle: "作品集",
-    portfolioIntro: "这里会保存你账号下生成过的角色图片。",
+    portfolioIntro: "这里会保存你账号下 7 天内生成过的角色图片；过期或损坏的图片会自动删除。",
     emptyPortfolio: "还没有生成历史。",
     portfolioLoginHint: "请先登录查看作品集。",
     loadPortfolioFailed: "加载作品集失败，请稍后再试。",
@@ -179,7 +179,7 @@ const copy = {
     animationTitle: "Animation Module",
     animationIntro: "This area will be used for character actions, frame sequences, and sprite sheets.",
     portfolioTitle: "Portfolio",
-    portfolioIntro: "Generated character images from your account are saved here.",
+    portfolioIntro: "Generated character images are saved here for 7 days. Expired or broken images are removed automatically.",
     emptyPortfolio: "No generation history yet.",
     portfolioLoginHint: "Please log in to view your portfolio.",
     loadPortfolioFailed: "Failed to load portfolio. Please try again later.",
@@ -703,6 +703,22 @@ export default function Home() {
     }
   }
 
+  async function removeBrokenPortfolioImage(generationId: string) {
+    setPortfolioItems((items) => items.filter((item) => item.id !== generationId));
+
+    try {
+      await fetch("/api/portfolio", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ generationId }),
+      });
+    } catch {
+      // The broken image is already hidden locally; the next portfolio load will retry cleanup.
+    }
+  }
+
   return (
     <main className="min-h-screen bg-[#10131f] text-[#eadfca]">
       <nav className="relative border-b border-[#6f5732] bg-[#171b2b] text-[#eadfca] shadow-[0_8px_28px_rgba(0,0,0,0.35)]">
@@ -1059,6 +1075,7 @@ export default function Home() {
                         width={128}
                         height={128}
                         unoptimized
+                        onError={() => void removeBrokenPortfolioImage(item.id)}
                         className="h-full w-full object-contain"
                         style={{ imageRendering: "pixelated" }}
                       />
