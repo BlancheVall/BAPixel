@@ -731,17 +731,6 @@ export default function Home() {
               </button>
               <button
                 type="button"
-                onClick={() => setActiveModule("animation")}
-                className={`h-9 rounded-md px-4 text-sm font-semibold transition ${
-                  activeModule === "animation"
-                    ? "bg-[#b88a3d] text-[#10131f]"
-                    : "text-[#eadfca] hover:bg-[#242b43]"
-                }`}
-              >
-                {t.animation}
-              </button>
-              <button
-                type="button"
                 onClick={() => setActiveModule("portfolio")}
                 className={`h-9 rounded-md px-4 text-sm font-semibold transition ${
                   activeModule === "portfolio"
@@ -754,7 +743,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center justify-end gap-3">
             {authUser ? (
               <div className="flex items-center gap-2">
                 <div className="flex h-10 items-center gap-2 rounded-full border border-[#8d6f37] bg-[#1d1924] px-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
@@ -805,19 +794,19 @@ export default function Home() {
               </div>
             )}
 
+            <label className="flex h-10 items-center gap-2 rounded-lg border border-[#6f5732] bg-[#0e1220] px-3 text-sm text-[#d8cbb5] xl:absolute xl:right-8 xl:top-4">
+              <span>{t.language}</span>
+              <select
+                value={language}
+                onChange={(event) => setLanguage(event.target.value as Language)}
+                className="h-8 rounded-md border border-[#6f5732] bg-[#171b2b] px-2 text-sm font-semibold text-[#fff2d4] outline-none transition focus:border-[#4aa394]"
+              >
+                <option value="zh">中文</option>
+                <option value="en">English</option>
+              </select>
+            </label>
           </div>
         </div>
-        <label className="flex items-center gap-2 px-5 pb-4 text-sm text-[#d8cbb5] sm:px-8 lg:px-10">
-          <span>{t.language}</span>
-          <select
-            value={language}
-            onChange={(event) => setLanguage(event.target.value as Language)}
-            className="h-10 rounded-lg border border-[#6f5732] bg-[#0e1220] px-3 text-sm text-[#fff2d4] outline-none transition focus:border-[#4aa394]"
-          >
-            <option value="zh">中文</option>
-            <option value="en">English</option>
-          </select>
-        </label>
       </nav>
 
       <div className="mx-auto flex min-h-[calc(100vh-89px)] w-full max-w-7xl flex-col gap-6 px-5 py-6 sm:px-8 lg:px-10">
