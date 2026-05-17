@@ -1,0 +1,88 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
+}
+
+model User {
+  id                 String               @id @default(cuid())
+  username           String
+  email              String               @unique
+  passwordHash       String?
+  googleSub          String?              @unique
+  points             Int                  @default(20)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @default(now()) @updatedAt
+  generations        Generation[]
+  pointPurchases     PointPurchase[]
+  pointTransactions  PointTransaction[]
+}
+
+model Generation {
+  id                     String   @id @default(cuid())
+  userId                 String
+  imageUrl               String
+  description            String?
+  characterFeaturePrompt String?
+  prompt                 String
+  rewrittenPrompt        String
+  referenceImageCount    Int      @default(0)
+  createdAt              DateTime @default(now())
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model PointPurchase {
+  id                      String         @id @default(cuid())
+  userId                  String
+  packageId               String
+  points                  Int
+  amountCents             Int
+  currency                String         @default("usd")
+  status                  PurchaseStatus @default(PENDING)
+  stripeCheckoutSessionId String?        @unique
+  stripePaymentIntentId   String?
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @default(now()) @updatedAt
+  completedAt             DateTime?
+  user                    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pointTransactions       PointTransaction[]
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+}
+
+model PointTransaction {
+  id             String                 @id @default(cuid())
+  userId         String
+  purchaseId     String?
+  amount         Int
+  type           PointTransactionType
+  note           String?
+  createdAt      DateTime               @default(now())
+  user           User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purchase       PointPurchase?         @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([purchaseId])
+}
+
+enum PurchaseStatus {
+  PENDING
+  PAID
+  CANCELED
+  REFUNDED
+}
+
+enum PointTransactionType {
+  GRANT
+  PURCHASE
+  SPEND
+  REFUND
+  ADJUSTMENT
+}

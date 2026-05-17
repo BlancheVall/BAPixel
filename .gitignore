@@ -29,6 +29,11 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+dev-server.log
+
+# generated images
+/public/outputs/*
+!/public/outputs/.gitkeep
 
 # env files (can opt-in for committing if needed)
 .env*
