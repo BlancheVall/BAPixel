@@ -17,7 +17,7 @@ import { saveGeneratedImage } from "@/lib/storage";
 
 export const runtime = "nodejs";
 
-const MAX_REFERENCE_IMAGES = 3;
+const MAX_REFERENCE_IMAGES = 10;
 const SUPPORTED_REFERENCE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp"]);
 
 function buildPixelPrompt(description: string, characterFeaturePrompt: string) {
