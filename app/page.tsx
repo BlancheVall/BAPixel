@@ -100,9 +100,6 @@ const copy = {
     uploadTooLarge: "参考图不能超过 10 MB。",
     info: "这个工具由 Blanche 开发和测试。",
     download: "下载 PNG",
-    generatedPrompt: "ChatGPT 作图 Prompt",
-    referenceCount: "已参考",
-    referenceSuffix: "张本地风格图",
     emptyResult: "生成结果会显示在这里",
     animationTitle: "动画模块",
     animationIntro: "这里将用于后续角色动作、帧序列和 sprite sheet 生成。",
@@ -174,9 +171,6 @@ const copy = {
     uploadTooLarge: "Reference image must be under 10 MB.",
     info: "This tool was developed and tested by Blanche.",
     download: "Download PNG",
-    generatedPrompt: "ChatGPT Image Prompt",
-    referenceCount: "Referenced",
-    referenceSuffix: "local style images",
     emptyResult: "Generated result will appear here",
     animationTitle: "Animation Module",
     animationIntro: "This area will be used for character actions, frame sequences, and sprite sheets.",
@@ -232,8 +226,6 @@ export default function Home() {
   const [description, setDescription] = useState("");
   const [characterReferenceImage, setCharacterReferenceImage] = useState("");
   const [imageUrl, setImageUrl] = useState("");
-  const [generatedPrompt, setGeneratedPrompt] = useState("");
-  const [referenceImageCount, setReferenceImageCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [typedIntro, setTypedIntro] = useState("");
@@ -638,8 +630,6 @@ export default function Home() {
     setLoading(true);
     setError("");
     setImageUrl("");
-    setGeneratedPrompt("");
-    setReferenceImageCount(null);
     setCopied(false);
 
     try {
@@ -663,8 +653,6 @@ export default function Home() {
       }
 
       setImageUrl(data.imageUrl);
-      setGeneratedPrompt(data.rewrittenPrompt || "");
-      setReferenceImageCount(data.referenceImageCount ?? null);
       if (data.user) {
         saveSession(data.user as AuthUser);
       }
@@ -1009,23 +997,6 @@ export default function Home() {
                         {copied ? t.copied : t.copy}
                       </button>
                     </div>
-                    {referenceImageCount !== null && (
-                      <p className="text-xs text-[#9f927d]">
-                        {t.referenceCount} {referenceImageCount} {t.referenceSuffix}
-                      </p>
-                    )}
-                    {generatedPrompt && (
-                      <div className="w-full max-w-[520px] rounded-lg border border-[#6f5732] bg-[#0e1220] p-4 text-left">
-                        <p className="text-xs font-semibold uppercase text-[#d6c49d]">
-                          {t.generatedPrompt}
-                        </p>
-                        <textarea
-                          readOnly
-                          value={generatedPrompt}
-                          className="mt-3 h-40 w-full resize-y rounded-md border border-[#2b3147] bg-[#080b13] p-3 text-xs leading-5 text-[#fff2d4] outline-none"
-                        />
-                      </div>
-                    )}
                   </div>
                 ) : (
                   <div className="text-center text-sm text-[#9f927d]">
