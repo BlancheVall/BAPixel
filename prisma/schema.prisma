@@ -14,10 +14,11 @@ model User {
   email              String               @unique
   passwordHash       String?
   googleSub          String?              @unique
-  points             Int                  @default(20)
+  points             Int                  @default(1)
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @default(now()) @updatedAt
   generations        Generation[]
+  generationJobs     GenerationJob[]
   pointPurchases     PointPurchase[]
   pointTransactions  PointTransaction[]
 }
@@ -26,6 +27,9 @@ model Generation {
   id                     String   @id @default(cuid())
   userId                 String
   imageUrl               String
+  title                  String?
+  category               String   @default("character")
+  favorite               Boolean  @default(false)
   description            String?
   characterFeaturePrompt String?
   prompt                 String
@@ -35,6 +39,30 @@ model Generation {
   user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+}
+
+model GenerationJob {
+  id                     String      @id @default(cuid())
+  userId                 String
+  providerJobId          String      @unique
+  status                 String      @default("PENDING")
+  error                  String?
+  cost                   Int
+  imageUrl               String?
+  generationId           String?
+  description            String?
+  title                  String?
+  category               String      @default("character")
+  characterFeaturePrompt String?
+  prompt                 String
+  rewrittenPrompt        String
+  referenceImageCount    Int         @default(0)
+  options                Json
+  createdAt              DateTime    @default(now())
+  updatedAt              DateTime    @default(now()) @updatedAt
+  user                   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, createdAt])
 }
 
 model PointPurchase {

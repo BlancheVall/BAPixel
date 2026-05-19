@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS "User" (
   "email" TEXT NOT NULL UNIQUE,
   "passwordHash" TEXT,
   "googleSub" TEXT UNIQUE,
-  "points" INTEGER NOT NULL DEFAULT 20,
+  "points" INTEGER NOT NULL DEFAULT 1,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -13,6 +13,9 @@ CREATE TABLE IF NOT EXISTS "Generation" (
   "id" TEXT PRIMARY KEY,
   "userId" TEXT NOT NULL,
   "imageUrl" TEXT NOT NULL,
+  "title" TEXT,
+  "category" TEXT NOT NULL DEFAULT 'character',
+  "favorite" BOOLEAN NOT NULL DEFAULT false,
   "description" TEXT,
   "characterFeaturePrompt" TEXT,
   "prompt" TEXT NOT NULL,
@@ -28,6 +31,44 @@ CREATE TABLE IF NOT EXISTS "Generation" (
 
 CREATE INDEX IF NOT EXISTS "Generation_userId_createdAt_idx"
   ON "Generation"("userId", "createdAt");
+
+ALTER TABLE "Generation"
+  ADD COLUMN IF NOT EXISTS "title" TEXT;
+
+ALTER TABLE "Generation"
+  ADD COLUMN IF NOT EXISTS "category" TEXT NOT NULL DEFAULT 'character';
+
+ALTER TABLE "Generation"
+  ADD COLUMN IF NOT EXISTS "favorite" BOOLEAN NOT NULL DEFAULT false;
+
+CREATE TABLE IF NOT EXISTS "GenerationJob" (
+  "id" TEXT PRIMARY KEY,
+  "userId" TEXT NOT NULL,
+  "providerJobId" TEXT NOT NULL UNIQUE,
+  "status" TEXT NOT NULL DEFAULT 'PENDING',
+  "error" TEXT,
+  "cost" INTEGER NOT NULL,
+  "imageUrl" TEXT,
+  "generationId" TEXT,
+  "description" TEXT,
+  "title" TEXT,
+  "category" TEXT NOT NULL DEFAULT 'character',
+  "characterFeaturePrompt" TEXT,
+  "prompt" TEXT NOT NULL,
+  "rewrittenPrompt" TEXT NOT NULL,
+  "referenceImageCount" INTEGER NOT NULL DEFAULT 0,
+  "options" JSONB NOT NULL,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "GenerationJob_userId_fkey"
+    FOREIGN KEY ("userId")
+    REFERENCES "User"("id")
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS "GenerationJob_userId_status_createdAt_idx"
+  ON "GenerationJob"("userId", "status", "createdAt");
 
 DO $$
 BEGIN

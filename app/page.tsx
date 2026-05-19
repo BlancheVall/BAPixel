@@ -1,12 +1,15 @@
 ﻿"use client";
 
 import Image from "next/image";
-import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, PointerEvent, useEffect, useRef, useState } from "react";
 
 type Language = "zh" | "en";
 type Module = "character" | "animation" | "portfolio";
 type StyleTemplate = "none" | "japanese_rpg";
 type AuthMode = "login" | "register";
+type AssetType = "character" | "item" | "monster" | "scene";
+type Direction = "screen_right" | "front" | "back" | "left" | "right";
+type BackgroundMode = "transparent" | "simple";
 
 type AuthUser = {
   username: string;
@@ -17,6 +20,9 @@ type AuthUser = {
 type PortfolioGeneration = {
   id: string;
   imageUrl: string;
+  title: string | null;
+  category: AssetType | string;
+  favorite: boolean;
   description: string | null;
   createdAt: string;
 };
@@ -69,8 +75,8 @@ const styleTemplateOptions = [
   {
     id: "japanese_rpg" as const,
     image: "/reference-style/001.png",
-    zh: "日式 RPG",
-    en: "Japanese RPG",
+    zh: "像素模板",
+    en: "Pixel Template",
   },
 ];
 
@@ -104,6 +110,22 @@ const landingCharacters = [
   },
 ];
 
+const assetTypeOptions: Array<{ id: AssetType; zh: string; en: string }> = [
+  { id: "character", zh: "角色", en: "Character" },
+  { id: "item", zh: "道具", en: "Item" },
+  { id: "monster", zh: "怪物", en: "Monster" },
+  { id: "scene", zh: "场景", en: "Scene" },
+];
+
+const directionOptions: Array<{ id: Direction; zh: string; en: string }> = [
+  { id: "screen_right", zh: "朝右", en: "Right" },
+  { id: "front", zh: "正面", en: "Front" },
+  { id: "back", zh: "背面", en: "Back" },
+  { id: "left", zh: "朝左", en: "Left" },
+];
+
+const outputSizeOptions = [128, 256, 512] as const;
+
 const copy = {
   zh: {
     appName: "AI Pixel Sprite Tool",
@@ -113,7 +135,7 @@ const copy = {
     landingTagline: "Create anything as you wish.",
     landingEyebrow: "AI PIXEL SPRITE TOOL",
     getStart: "Get Start",
-    intro: "输入角色描述或上传角色参考图，选择画风模板，生成 128x128 像素 PNG。",
+    intro: "输入描述或上传参考图，选择资产类型、方向和尺寸，生成像素 PNG。",
     language: "语言",
     character: "角色",
     animation: "动画",
@@ -130,7 +152,17 @@ const copy = {
     uploadButton: "上传图片",
     removeImage: "移除",
     placeholder: "例如：一个戴着紫色巫师帽的粉色长发女性法师",
-    generate: "生成角色",
+    generationSettings: "生成设置",
+    assetType: "资产类型",
+    direction: "方向",
+    outputSize: "导出尺寸",
+    backgroundMode: "背景",
+    transparentBackground: "透明",
+    simpleBackground: "简洁背景",
+    styleStrength: "画风强度",
+    seed: "Seed",
+    randomSeed: "随机",
+    generate: "生成资产",
     generating: "生成中...",
     emptyError: "请输入角色描述或上传角色参考图。",
     failedError: "生成失败，请稍后再试。",
@@ -149,7 +181,7 @@ const copy = {
     animationTitle: "动画模块",
     animationIntro: "这里将用于后续角色动作、帧序列和 sprite sheet 生成。",
     portfolioTitle: "作品集",
-    portfolioIntro: "这里会保存你账号下 7 天内生成过的角色图片；过期或损坏的图片会自动删除。",
+    portfolioIntro: "这里会保存你账号下 7 天内生成过的资产；可以收藏、命名、复制提示词并再次生成相似图。",
     emptyPortfolio: "还没有生成历史。",
     portfolioLoginHint: "请先登录查看作品集。",
     loadPortfolioFailed: "加载作品集失败，请稍后再试。",
@@ -180,6 +212,19 @@ const copy = {
     googleConfigMissing: "请先配置 Google Client ID。",
     googleLoginFailed: "Google 登录失败，请稍后再试。",
     copy: "复制",
+    copyPrompt: "复制 Prompt",
+    regenerateSimilar: "再次生成相似",
+    rename: "命名",
+    favorite: "收藏",
+    exportIdleSheet: "导出 Idle 4帧",
+    exportWalkSheet: "导出 Walk 4帧",
+    editPixels: "编辑像素",
+    pixelEditorTitle: "像素编辑",
+    brush: "画笔",
+    eraser: "橡皮",
+    undo: "撤销",
+    saveEdit: "保存到预览",
+    commercialNote: "商用前请确认当前模型和 LoRA 许可证；你的作品会按服务条款保存和导出。",
     copied: "已复制",
     copyImageUnsupported: "当前浏览器不支持复制图片，已复制图片链接。",
     rechargeTitle: "充值 Point",
@@ -201,7 +246,7 @@ const copy = {
     landingTagline: "Create anything as you wish.",
     landingEyebrow: "AI PIXEL SPRITE TOOL",
     getStart: "Get Start",
-    intro: "Enter a character description or upload a character reference, choose a style template, and generate a 128x128 pixel PNG.",
+    intro: "Enter a prompt or upload a reference, choose asset type, direction, and size, then generate a pixel PNG.",
     language: "Language",
     character: "Character",
     animation: "Animation",
@@ -218,7 +263,17 @@ const copy = {
     uploadButton: "Upload Image",
     removeImage: "Remove",
     placeholder: "Example: a female mage with long pink hair wearing a purple wizard hat",
-    generate: "Generate Character",
+    generationSettings: "Generation Settings",
+    assetType: "Asset Type",
+    direction: "Direction",
+    outputSize: "Export Size",
+    backgroundMode: "Background",
+    transparentBackground: "Transparent",
+    simpleBackground: "Simple",
+    styleStrength: "Style Strength",
+    seed: "Seed",
+    randomSeed: "Random",
+    generate: "Generate Asset",
     generating: "Generating...",
     emptyError: "Please enter a character description or upload a character reference.",
     failedError: "Generation failed. Please try again later.",
@@ -237,7 +292,7 @@ const copy = {
     animationTitle: "Animation Module",
     animationIntro: "This area will be used for character actions, frame sequences, and sprite sheets.",
     portfolioTitle: "Portfolio",
-    portfolioIntro: "Generated character images are saved here for 7 days. Expired or broken images are removed automatically.",
+    portfolioIntro: "Generated assets are saved here for 7 days. Favorite, name, copy prompts, and regenerate similar assets.",
     emptyPortfolio: "No generation history yet.",
     portfolioLoginHint: "Please log in to view your portfolio.",
     loadPortfolioFailed: "Failed to load portfolio. Please try again later.",
@@ -268,6 +323,19 @@ const copy = {
     googleConfigMissing: "Please configure the Google Client ID first.",
     googleLoginFailed: "Google login failed. Please try again later.",
     copy: "Copy",
+    copyPrompt: "Copy Prompt",
+    regenerateSimilar: "Regenerate Similar",
+    rename: "Rename",
+    favorite: "Favorite",
+    exportIdleSheet: "Export Idle 4F",
+    exportWalkSheet: "Export Walk 4F",
+    editPixels: "Pixel Edit",
+    pixelEditorTitle: "Pixel Editor",
+    brush: "Brush",
+    eraser: "Eraser",
+    undo: "Undo",
+    saveEdit: "Save Preview",
+    commercialNote: "Before commercial use, confirm the current model and LoRA license. Assets are stored and exported under the service terms.",
     copied: "Copied",
     copyImageUnsupported: "This browser cannot copy images, so the image link was copied.",
     rechargeTitle: "Recharge Points",
@@ -288,6 +356,12 @@ export default function Home() {
   const [showLanding, setShowLanding] = useState(true);
   const [activeModule, setActiveModule] = useState<Module>("character");
   const [styleTemplate, setStyleTemplate] = useState<StyleTemplate>("none");
+  const [assetType, setAssetType] = useState<AssetType>("character");
+  const [direction, setDirection] = useState<Direction>("screen_right");
+  const [outputSize, setOutputSize] = useState<128 | 256 | 512>(128);
+  const [backgroundMode, setBackgroundMode] = useState<BackgroundMode>("transparent");
+  const [styleStrength, setStyleStrength] = useState(0.5);
+  const [seed, setSeed] = useState("");
   const [description, setDescription] = useState("");
   const [characterReferenceImage, setCharacterReferenceImage] = useState("");
   const [imageUrl, setImageUrl] = useState("");
@@ -297,6 +371,10 @@ export default function Home() {
   const [error, setError] = useState("");
   const [typedIntro, setTypedIntro] = useState("");
   const [copied, setCopied] = useState(false);
+  const [pixelEditorOpen, setPixelEditorOpen] = useState(false);
+  const [pixelTool, setPixelTool] = useState<"brush" | "eraser">("brush");
+  const [pixelColor, setPixelColor] = useState("#fff2d4");
+  const [pixelUndoStack, setPixelUndoStack] = useState<string[]>([]);
   const [portfolioItems, setPortfolioItems] = useState<PortfolioGeneration[]>([]);
   const [portfolioLoading, setPortfolioLoading] = useState(false);
   const [portfolioError, setPortfolioError] = useState("");
@@ -315,6 +393,7 @@ export default function Home() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
   const generatedImageRef = useRef<HTMLImageElement | null>(null);
+  const pixelCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const t = copy[language];
   const canGenerate = Boolean(description.trim() || characterReferenceImage);
   const generationCost = 1 + (styleTemplate === "none" ? 0 : 2) + (characterReferenceImage ? 1 : 0);
@@ -713,10 +792,21 @@ export default function Home() {
           description: trimmedDescription,
           styleTemplate,
           characterReferenceImage: characterReferenceImage || null,
+          assetType,
+          direction,
+          outputSize,
+          backgroundMode,
+          styleStrength,
+          seed: seed.trim() ? Number(seed) : null,
         }),
       });
 
       const data = await response.json();
+
+      if (response.status === 202 && data.job?.id) {
+        await pollGenerationJob(String(data.job.id));
+        return;
+      }
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -729,6 +819,8 @@ export default function Home() {
           setError(t.uploadTooLarge);
         } else if (response.status === 429) {
           setError(t.rateLimitError);
+        } else if (response.status === 409) {
+          setError(data.error || (language === "zh" ? "已有生成任务正在进行，请稍等。" : "A generation is already running. Please wait."));
         } else if (response.status >= 500) {
           setError(data.error || t.serverConfigError);
         } else {
@@ -780,6 +872,46 @@ export default function Home() {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1400);
     }
+  }
+
+  async function pollGenerationJob(jobId: string) {
+    const startedAt = Date.now();
+
+    while (Date.now() - startedAt < 180000) {
+      await new Promise((resolve) => window.setTimeout(resolve, 3000));
+
+      const response = await fetch(`/api/generation-job?id=${encodeURIComponent(jobId)}`);
+      const data = await response.json();
+
+      if (response.status === 202 || data.job?.status === "PENDING" || data.job?.status === "RUNNING") {
+        continue;
+      }
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          setError(t.loginExpiredError);
+          setAuthUser(null);
+          openAuth("login");
+        } else if (response.status === 402) {
+          setError(t.insufficientPoints);
+        } else {
+          setError(data.error || t.failedError);
+        }
+        return;
+      }
+
+      setImageUrl(data.imageUrl);
+      setGenerationImageApiUrl(data.generation?.id ? `/api/generation-image?id=${encodeURIComponent(data.generation.id)}` : "");
+      if (data.user) {
+        saveSession(data.user as AuthUser);
+      }
+      if (data.generation) {
+        setPortfolioItems((items) => [data.generation as PortfolioGeneration, ...items]);
+      }
+      return;
+    }
+
+    setError(language === "zh" ? "生成仍在进行，请稍后到作品集查看。" : "Generation is still running. Please check the portfolio later.");
   }
 
   async function getDisplayedImageBlob() {
@@ -842,6 +974,206 @@ export default function Home() {
       link.click();
       link.remove();
     }
+  }
+
+  async function exportSpriteSheet(kind: "idle" | "walk") {
+    if (!imageUrl) {
+      return;
+    }
+
+    try {
+      const blob = await getDisplayedImageBlob();
+      const bitmap = await createImageBitmap(blob);
+      const frameSize = Math.max(bitmap.width, bitmap.height);
+      const canvas = document.createElement("canvas");
+      canvas.width = frameSize * 4;
+      canvas.height = frameSize;
+      const context = canvas.getContext("2d");
+
+      if (!context) {
+        bitmap.close();
+        return;
+      }
+
+      context.imageSmoothingEnabled = false;
+      context.clearRect(0, 0, canvas.width, canvas.height);
+
+      const offsets =
+        kind === "idle"
+          ? [
+              [0, 0],
+              [0, -2],
+              [0, 0],
+              [0, 1],
+            ]
+          : [
+              [-3, 0],
+              [0, -2],
+              [3, 0],
+              [0, 1],
+            ];
+
+      offsets.forEach(([x, y], index) => {
+        context.drawImage(bitmap, index * frameSize + x, y, frameSize, frameSize);
+      });
+      bitmap.close();
+
+      canvas.toBlob((sheetBlob) => {
+        if (!sheetBlob) {
+          return;
+        }
+
+        const url = URL.createObjectURL(sheetBlob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `pixel-${kind}-sheet.png`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      }, "image/png");
+    } catch {
+      setError(t.failedError);
+    }
+  }
+
+  async function openPixelEditor() {
+    if (!imageUrl) {
+      return;
+    }
+
+    setPixelEditorOpen(true);
+
+    try {
+      const blob = await getDisplayedImageBlob();
+      const bitmap = await createImageBitmap(blob);
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+      const canvas = pixelCanvasRef.current;
+      const context = canvas?.getContext("2d");
+
+      if (!canvas || !context) {
+        bitmap.close();
+        return;
+      }
+
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      context.imageSmoothingEnabled = false;
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(bitmap, 0, 0);
+      bitmap.close();
+      setPixelUndoStack([]);
+      setPixelEditorOpen(true);
+    } catch {
+      setError(t.failedError);
+    }
+  }
+
+  function drawPixel(event: PointerEvent<HTMLCanvasElement>) {
+    const canvas = pixelCanvasRef.current;
+    const context = canvas?.getContext("2d");
+
+    if (!canvas || !context || event.buttons !== 1) {
+      return;
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.floor(((event.clientX - rect.left) / rect.width) * canvas.width);
+    const y = Math.floor(((event.clientY - rect.top) / rect.height) * canvas.height);
+
+    context.imageSmoothingEnabled = false;
+    if (pixelTool === "eraser") {
+      context.clearRect(x, y, 1, 1);
+    } else {
+      context.fillStyle = pixelColor;
+      context.fillRect(x, y, 1, 1);
+    }
+  }
+
+  function beginPixelStroke(event: PointerEvent<HTMLCanvasElement>) {
+    const canvas = pixelCanvasRef.current;
+
+    if (canvas) {
+      setPixelUndoStack((stack) => [...stack.slice(-9), canvas.toDataURL("image/png")]);
+    }
+
+    drawPixel(event);
+  }
+
+  function undoPixelEdit() {
+    const previous = pixelUndoStack.at(-1);
+    const canvas = pixelCanvasRef.current;
+    const context = canvas?.getContext("2d");
+
+    if (!previous || !canvas || !context) {
+      return;
+    }
+
+    const image = new window.Image();
+    image.onload = () => {
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0);
+      setPixelUndoStack((stack) => stack.slice(0, -1));
+    };
+    image.src = previous;
+  }
+
+  function savePixelEditToPreview() {
+    const canvas = pixelCanvasRef.current;
+
+    if (!canvas) {
+      return;
+    }
+
+    setImageUrl(canvas.toDataURL("image/png"));
+    setGenerationImageApiUrl("");
+    setPixelEditorOpen(false);
+  }
+
+  async function updatePortfolioItem(
+    generationId: string,
+    changes: Partial<Pick<PortfolioGeneration, "title" | "category" | "favorite">>,
+  ) {
+    const previousItems = portfolioItems;
+    setPortfolioItems((items) =>
+      items.map((item) => (item.id === generationId ? { ...item, ...changes } : item)),
+    );
+
+    try {
+      const response = await fetch("/api/portfolio", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ generationId, ...changes }),
+      });
+      const data = await response.json();
+
+      if (!response.ok || !data.generation) {
+        throw new Error("Failed to update portfolio item.");
+      }
+
+      setPortfolioItems((items) =>
+        items.map((item) => (item.id === generationId ? data.generation : item)),
+      );
+    } catch {
+      setPortfolioItems(previousItems);
+      setPortfolioError(t.loadPortfolioFailed);
+    }
+  }
+
+  async function copyPortfolioPrompt(item: PortfolioGeneration) {
+    await navigator.clipboard.writeText(item.description || item.title || "");
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1400);
+  }
+
+  function regeneratePortfolioItem(item: PortfolioGeneration) {
+    setDescription(item.description || item.title || "");
+    if (["character", "item", "monster", "scene"].includes(String(item.category))) {
+      setAssetType(item.category as AssetType);
+    }
+    setActiveModule("character");
   }
 
   async function removeBrokenPortfolioImage(generationId: string) {
@@ -1307,6 +1639,113 @@ export default function Home() {
                         ))}
                       </div>
                     </div>
+
+                    <div className="rounded-lg border border-[#6f5732] bg-[#171b2b] p-4">
+                      <p className="text-sm font-semibold text-[#eadfca]">
+                        {t.generationSettings}
+                      </p>
+
+                      <div className="mt-3 flex flex-col gap-4">
+                        <div>
+                          <p className="mb-2 text-xs font-semibold text-[#9f927d]">{t.assetType}</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            {assetTypeOptions.map((option) => (
+                              <button
+                                key={option.id}
+                                type="button"
+                                onClick={() => setAssetType(option.id)}
+                                className={`rounded-md border px-3 py-2 text-xs font-bold transition ${
+                                  assetType === option.id
+                                    ? "border-[#b88a3d] bg-[#b88a3d] text-[#10131f]"
+                                    : "border-[#46384a] bg-[#0e1220] text-[#eadfca] hover:border-[#6f5732]"
+                                }`}
+                              >
+                                {option[language]}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div>
+                          <p className="mb-2 text-xs font-semibold text-[#9f927d]">{t.direction}</p>
+                          <div className="grid grid-cols-4 gap-2">
+                            {directionOptions.map((option) => (
+                              <button
+                                key={option.id}
+                                type="button"
+                                disabled={assetType === "scene"}
+                                onClick={() => setDirection(option.id)}
+                                className={`rounded-md border px-2 py-2 text-xs font-bold transition disabled:opacity-40 ${
+                                  direction === option.id
+                                    ? "border-[#b88a3d] bg-[#3a2818] text-[#f0c36e]"
+                                    : "border-[#46384a] bg-[#0e1220] text-[#eadfca] hover:border-[#6f5732]"
+                                }`}
+                              >
+                                {option[language]}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <p className="mb-2 text-xs font-semibold text-[#9f927d]">{t.outputSize}</p>
+                            <div className="flex gap-2">
+                              {outputSizeOptions.map((size) => (
+                                <button
+                                  key={size}
+                                  type="button"
+                                  onClick={() => setOutputSize(size)}
+                                  className={`rounded-md border px-2.5 py-2 text-xs font-bold transition ${
+                                    outputSize === size
+                                      ? "border-[#b88a3d] bg-[#3a2818] text-[#f0c36e]"
+                                      : "border-[#46384a] bg-[#0e1220] text-[#eadfca] hover:border-[#6f5732]"
+                                  }`}
+                                >
+                                  {size}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div>
+                            <p className="mb-2 text-xs font-semibold text-[#9f927d]">{t.backgroundMode}</p>
+                            <select
+                              value={backgroundMode}
+                              onChange={(event) => setBackgroundMode(event.target.value as BackgroundMode)}
+                              className="h-9 w-full rounded-md border border-[#46384a] bg-[#0e1220] px-2 text-xs font-bold text-[#eadfca] outline-none focus:border-[#4aa394]"
+                            >
+                              <option value="transparent">{t.transparentBackground}</option>
+                              <option value="simple">{t.simpleBackground}</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-[1fr_88px] gap-3">
+                          <label className="text-xs font-semibold text-[#9f927d]">
+                            {t.styleStrength}: {styleStrength.toFixed(1)}
+                            <input
+                              type="range"
+                              min="0.1"
+                              max="1"
+                              step="0.1"
+                              value={styleStrength}
+                              onChange={(event) => setStyleStrength(Number(event.target.value))}
+                              className="mt-2 w-full accent-[#b88a3d]"
+                            />
+                          </label>
+                          <label className="text-xs font-semibold text-[#9f927d]">
+                            {t.seed}
+                            <input
+                              value={seed}
+                              onChange={(event) => setSeed(event.target.value.replace(/\D/g, "").slice(0, 10))}
+                              placeholder={t.randomSeed}
+                              className="mt-2 h-9 w-full rounded-md border border-[#46384a] bg-[#0e1220] px-2 text-xs text-[#eadfca] outline-none placeholder:text-[#7f735f] focus:border-[#4aa394]"
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -1328,6 +1767,9 @@ export default function Home() {
                   <div className="min-h-28 flex-1 rounded-lg border border-[#6f5732] bg-[#171b2b] p-4">
                     <p className="text-sm leading-6 text-[#b8aa92]">
                       {t.info}
+                    </p>
+                    <p className="mt-2 text-xs leading-5 text-[#9f927d]">
+                      {t.commercialNote}
                     </p>
                   </div>
                   <Image
@@ -1379,6 +1821,27 @@ export default function Home() {
                         className="rounded-lg border border-[#6f5732] bg-[#0e1220] px-4 py-2 text-sm font-semibold text-[#fff2d4] transition hover:border-[#4aa394]"
                       >
                         {copied ? t.copied : t.copy}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void exportSpriteSheet("idle")}
+                        className="rounded-lg border border-[#6f5732] bg-[#0e1220] px-4 py-2 text-sm font-semibold text-[#fff2d4] transition hover:border-[#4aa394]"
+                      >
+                        {t.exportIdleSheet}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void exportSpriteSheet("walk")}
+                        className="rounded-lg border border-[#6f5732] bg-[#0e1220] px-4 py-2 text-sm font-semibold text-[#fff2d4] transition hover:border-[#4aa394]"
+                      >
+                        {t.exportWalkSheet}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void openPixelEditor()}
+                        className="rounded-lg border border-[#6f5732] bg-[#0e1220] px-4 py-2 text-sm font-semibold text-[#fff2d4] transition hover:border-[#4aa394]"
+                      >
+                        {t.editPixels}
                       </button>
                     </div>
                   </div>
@@ -1462,12 +1925,62 @@ export default function Home() {
                     </a>
                     <button
                       type="button"
+                      onClick={() => void updatePortfolioItem(item.id, { favorite: !item.favorite })}
+                      aria-label={t.favorite}
+                      className={`absolute left-5 top-5 flex h-9 w-9 items-center justify-center rounded-lg border border-[#6f5732] bg-[#0e1220]/90 text-sm font-bold shadow-[0_8px_20px_rgba(0,0,0,0.35)] transition hover:border-[#b88a3d] ${
+                        item.favorite ? "text-[#f0c36e]" : "text-[#eadfca]"
+                      }`}
+                    >
+                      ★
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => void deletePortfolioImage(item.id)}
                       aria-label={t.delete}
                       className="absolute right-5 top-16 rounded-lg border border-[#6f5732] bg-[#0e1220]/90 px-3 py-2 text-xs font-bold text-[#ffb1a8] opacity-100 shadow-[0_8px_20px_rgba(0,0,0,0.35)] transition hover:border-[#8f3a35] hover:bg-[#2a1720] sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
                     >
                       {t.delete}
                     </button>
+                    <div className="mt-3 flex flex-col gap-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="line-clamp-1 text-sm font-bold text-[#fff2d4]">
+                            {item.title || item.description || (language === "zh" ? "未命名资产" : "Untitled Asset")}
+                          </p>
+                          <p className="mt-1 text-xs uppercase tracking-[0.14em] text-[#9f927d]">
+                            {item.category || "character"}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const title = window.prompt(t.rename, item.title || item.description || "");
+                            if (title !== null) {
+                              void updatePortfolioItem(item.id, { title });
+                            }
+                          }}
+                          className="rounded-md border border-[#46384a] px-2 py-1 text-xs font-bold text-[#eadfca] transition hover:border-[#b88a3d]"
+                        >
+                          {t.rename}
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void copyPortfolioPrompt(item)}
+                          className="rounded-md border border-[#46384a] bg-[#0e1220] px-2 py-2 text-xs font-bold text-[#eadfca] transition hover:border-[#4aa394]"
+                        >
+                          {t.copyPrompt}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => regeneratePortfolioItem(item)}
+                          className="rounded-md border border-[#46384a] bg-[#0e1220] px-2 py-2 text-xs font-bold text-[#eadfca] transition hover:border-[#4aa394]"
+                        >
+                          {t.regenerateSimilar}
+                        </button>
+                      </div>
+                    </div>
                   </article>
                 ))}
               </div>
@@ -1479,6 +1992,88 @@ export default function Home() {
           </section>
         )}
       </div>
+
+      {pixelEditorOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+          <div className="w-full max-w-3xl rounded-lg border border-[#6f5732] bg-[#171b2b] p-5 shadow-[0_18px_50px_rgba(0,0,0,0.5)]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold text-[#fff2d4]">{t.pixelEditorTitle}</h2>
+                <p className="mt-1 text-xs text-[#9f927d]">
+                  {outputSize} × {outputSize}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPixelEditorOpen(false)}
+                className="h-8 w-8 rounded-md border border-[#6f5732] text-sm font-bold text-[#eadfca] transition hover:border-[#b88a3d]"
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_180px]">
+              <div className="flex min-h-[360px] items-center justify-center rounded-lg border border-[#46384a] bg-[linear-gradient(45deg,#111827_25%,transparent_25%),linear-gradient(-45deg,#111827_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#111827_75%),linear-gradient(-45deg,transparent_75%,#111827_75%)] bg-[length:24px_24px] bg-[position:0_0,0_12px,12px_-12px,-12px_0] p-4">
+                <canvas
+                  ref={pixelCanvasRef}
+                  onPointerDown={beginPixelStroke}
+                  onPointerMove={drawPixel}
+                  className="max-h-[480px] max-w-full rounded border border-[#6f5732] bg-transparent"
+                  style={{ imageRendering: "pixelated", width: "min(480px, 90vw)", height: "min(480px, 90vw)" }}
+                />
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPixelTool("brush")}
+                    className={`rounded-lg border px-3 py-2 text-sm font-bold transition ${
+                      pixelTool === "brush"
+                        ? "border-[#b88a3d] bg-[#b88a3d] text-[#10131f]"
+                        : "border-[#46384a] bg-[#0e1220] text-[#eadfca] hover:border-[#6f5732]"
+                    }`}
+                  >
+                    {t.brush}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPixelTool("eraser")}
+                    className={`rounded-lg border px-3 py-2 text-sm font-bold transition ${
+                      pixelTool === "eraser"
+                        ? "border-[#b88a3d] bg-[#b88a3d] text-[#10131f]"
+                        : "border-[#46384a] bg-[#0e1220] text-[#eadfca] hover:border-[#6f5732]"
+                    }`}
+                  >
+                    {t.eraser}
+                  </button>
+                </div>
+                <input
+                  type="color"
+                  value={pixelColor}
+                  onChange={(event) => setPixelColor(event.target.value)}
+                  className="h-11 w-full rounded-lg border border-[#46384a] bg-[#0e1220] p-1"
+                />
+                <button
+                  type="button"
+                  onClick={undoPixelEdit}
+                  className="rounded-lg border border-[#46384a] bg-[#0e1220] px-3 py-2 text-sm font-bold text-[#eadfca] transition hover:border-[#4aa394]"
+                >
+                  {t.undo}
+                </button>
+                <button
+                  type="button"
+                  onClick={savePixelEditToPreview}
+                  className="rounded-lg bg-[#8f3a35] px-3 py-2 text-sm font-bold text-[#fff2d4] transition hover:bg-[#a8443d]"
+                >
+                  {t.saveEdit}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {authOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-4">

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readFile } from "fs/promises";
 import path from "path";
-import sharp from "sharp";
 import { getSessionUser, publicUser } from "@/lib/auth";
+import { pixelPostProcess } from "@/lib/image-postprocess";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import {
@@ -12,7 +12,7 @@ import {
   MAX_REFERENCE_IMAGE_BYTES,
   readLimitedJson,
 } from "@/lib/request-guard";
-import { generateImageWithRunPod } from "@/lib/runpod";
+import { generateImageWithRunPod, startRunPodJob } from "@/lib/runpod";
 import { saveGeneratedImage } from "@/lib/storage";
 
 export const runtime = "nodejs";
@@ -23,6 +23,7 @@ const REFERENCE_IMAGE_EXTRA_COST = 1;
 const PROMPT_HELPER_MODEL = process.env.PROMPT_HELPER_MODEL || "gpt-4.1-mini";
 const OPENAI_IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || "gpt-image-1";
 const OPENAI_IMAGE_QUALITY = process.env.OPENAI_IMAGE_QUALITY || "medium";
+const activeGenerationUsers = new Set<string>();
 const TEMPLATE_STYLE_REFERENCE_FILES = [
   "001.png",
   "003.png",
@@ -69,6 +70,93 @@ type OpenAIImagePayload = {
   };
 };
 
+type AssetType = "character" | "item" | "monster" | "scene";
+type Direction = "screen_right" | "front" | "back" | "left" | "right";
+type BackgroundMode = "transparent" | "simple";
+
+type GenerationOptions = {
+  assetType: AssetType;
+  direction: Direction;
+  outputSize: 128 | 256 | 512;
+  backgroundMode: BackgroundMode;
+  styleStrength: number;
+  seed?: number;
+};
+
+function normalizeGenerationOptions(body: Record<string, unknown>): GenerationOptions {
+  const assetType = ["character", "item", "monster", "scene"].includes(String(body.assetType))
+    ? (body.assetType as AssetType)
+    : "character";
+  const direction = ["screen_right", "front", "back", "left", "right"].includes(String(body.direction))
+    ? (body.direction as Direction)
+    : "screen_right";
+  const requestedSize = Number(body.outputSize);
+  const outputSize = requestedSize === 256 || requestedSize === 512 ? requestedSize : 128;
+  const backgroundMode = body.backgroundMode === "simple" ? "simple" : "transparent";
+  const requestedStrength = Number(body.styleStrength);
+  const styleStrength = Number.isFinite(requestedStrength)
+    ? Math.min(1, Math.max(0.1, requestedStrength))
+    : 0.5;
+  const requestedSeed = Number(body.seed);
+  const seed =
+    Number.isFinite(requestedSeed) && requestedSeed >= 0
+      ? Math.floor(requestedSeed)
+      : undefined;
+
+  return {
+    assetType,
+    direction,
+    outputSize,
+    backgroundMode,
+    styleStrength,
+    seed,
+  };
+}
+
+function getDirectionPrompt(direction: Direction) {
+  if (direction === "front") {
+    return "front view, facing viewer";
+  }
+
+  if (direction === "back") {
+    return "back view, facing away";
+  }
+
+  if (direction === "left") {
+    return "side view, facing screen left";
+  }
+
+  if (direction === "right" || direction === "screen_right") {
+    return "near front-facing 3/4 view, turned slightly toward screen right, facing screen right";
+  }
+
+  return "near front-facing 3/4 view, turned slightly toward screen right";
+}
+
+function getAssetPromptParts(assetType: AssetType) {
+  if (assetType === "item") {
+    return ["single game item icon", "centered object", "readable silhouette", "RPG inventory asset"];
+  }
+
+  if (assetType === "monster") {
+    return ["single monster sprite", "full body", "centered", "creature design", "game enemy asset"];
+  }
+
+  if (assetType === "scene") {
+    return ["pixel art scene", "RPG map tile style", "environment asset", "clean readable layout"];
+  }
+
+  return ["single character", "full body", "centered", "solo", "standing pose"];
+}
+
+function getRunPodCanvasSize(assetType: AssetType) {
+  if (assetType === "scene" || assetType === "item") {
+    return { width: 768, height: 768 };
+  }
+
+  return { width: 512, height: 768 };
+}
+
 function buildOpenAITemplatePrompt(characterPrompt: string) {
   return `Create exactly one centered full-body RPG pixel character sprite on a fully transparent background.
 
@@ -86,21 +174,17 @@ Background and exclusions: transparent alpha background outside the character si
 function buildPixelPrompt(
   characterTags: string,
   usesStyleTemplate: boolean,
+  options: GenerationOptions,
 ) {
   if (!usesStyleTemplate) {
     return [
       "(masterpiece, top quality, best quality)",
       "pixel",
       "pixel art",
-      "game sprite",
-      "single character",
-      "full body",
-      "centered",
-      "solo",
-      "transparent background",
-      "simple background",
-      "front 3/4 view",
-      "standing pose",
+      "game asset",
+      ...getAssetPromptParts(options.assetType),
+      options.backgroundMode === "transparent" ? "transparent background" : "simple clean background",
+      options.assetType === "scene" ? "" : getDirectionPrompt(options.direction),
       "clean silhouette",
       "chunky pixels",
       "limited color palette",
@@ -112,20 +196,16 @@ function buildPixelPrompt(
   }
 
   return [
-    "(masterpiece, top quality, best quality)",
-    "pixel",
-    "pixel art",
-    "Korean RPG fantasy adventurer sprite",
-    "cute chibi character",
-    "single character",
-    "full body",
-    "centered",
-    "solo",
-    "transparent background",
-    "front 3/4 view",
-    "standing pose",
-    "clean silhouette",
-    "thick outline",
+      "(masterpiece, top quality, best quality)",
+      "pixel",
+      "pixel art",
+      "Korean RPG fantasy adventurer sprite",
+      "cute chibi character",
+      ...getAssetPromptParts(options.assetType),
+      options.backgroundMode === "transparent" ? "transparent background" : "simple clean background",
+      options.assetType === "scene" ? "" : getDirectionPrompt(options.direction),
+      "clean silhouette",
+      "thick outline",
     "chunky pixels",
     "limited color palette",
     "hard edges",
@@ -317,7 +397,7 @@ async function generateImageWithOpenAITemplate(prompt: string) {
   for (const filename of TEMPLATE_STYLE_REFERENCE_FILES) {
     const imagePath = path.join(process.cwd(), "referenceImage", filename);
     const buffer = await readFile(imagePath);
-    formData.append("image", new Blob([buffer], { type: "image/png" }), filename);
+    formData.append("image[]", new Blob([buffer], { type: "image/png" }), filename);
   }
 
   const response = await fetch("https://api.openai.com/v1/images/edits", {
@@ -351,18 +431,9 @@ async function generateImageWithOpenAITemplate(prompt: string) {
   throw new Error("OpenAI image generation returned no image.");
 }
 
-async function pixelPostProcess(inputBuffer: Buffer) {
-  return sharp(inputBuffer)
-    .resize(128, 128, {
-      fit: "contain",
-      background: { r: 0, g: 0, b: 0, alpha: 0 },
-      kernel: "nearest",
-    })
-    .png()
-    .toBuffer();
-}
-
 export async function POST(req: NextRequest) {
+  let lockedUserId: string | null = null;
+
   try {
     const sessionUser = await getSessionUser(req);
 
@@ -405,6 +476,7 @@ export async function POST(req: NextRequest) {
 
     const body = await readLimitedJson(req);
     const description = String(body.description || "").trim();
+    const generationOptions = normalizeGenerationOptions(body);
     const styleTemplate = body.styleTemplate === "japanese_rpg" ? "japanese_rpg" : "none";
     const usesStyleTemplate = styleTemplate !== "none";
     const characterReferenceImage =
@@ -424,6 +496,32 @@ export async function POST(req: NextRequest) {
 
     if (sessionUser.points < generationCost) {
       return NextResponse.json({ error: "Not enough Points to generate an image." }, { status: 402 });
+    }
+
+    if (activeGenerationUsers.has(sessionUser.id)) {
+      return NextResponse.json(
+        { error: "A generation is already running for this account. Please wait for it to finish." },
+        { status: 409 },
+      );
+    }
+
+    const existingJob = await prisma.generationJob.findFirst({
+      where: {
+        userId: sessionUser.id,
+        status: {
+          in: ["PENDING", "RUNNING"],
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (existingJob) {
+      return NextResponse.json(
+        { error: "A generation is already running for this account. Please wait for it to finish." },
+        { status: 409 },
+      );
     }
 
     if (description.length > MAX_DESCRIPTION_LENGTH) {
@@ -450,6 +548,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    activeGenerationUsers.add(sessionUser.id);
+    lockedUserId = sessionUser.id;
+
     const characterFeaturePrompt = usesStyleTemplate
       ? usesReferenceImage
         ? await generateTemplateCharacterPromptWithChatGPT(description, characterReferenceImage)
@@ -457,21 +558,64 @@ export async function POST(req: NextRequest) {
       : await generateCharacterTagsWithChatGPT(description, characterReferenceImage);
     const prompt = usesStyleTemplate
       ? buildOpenAITemplatePrompt(characterFeaturePrompt)
-      : buildPixelPrompt(characterFeaturePrompt, false);
+      : buildPixelPrompt(characterFeaturePrompt, false, generationOptions);
     const rewrittenPrompt = usesStyleTemplate ? prompt : applyRunPodPromptPrefix(prompt);
     const referenceImageCount = usesStyleTemplate
       ? TEMPLATE_STYLE_REFERENCE_FILES.length
       : characterReferenceImage && process.env.RUNPOD_ENABLE_INIT_IMAGE === "true"
         ? 1
         : 0;
+
+    if (!usesStyleTemplate) {
+      const runPodJob = await startRunPodJob({
+        prompt: rewrittenPrompt,
+        initImage: characterReferenceImage,
+        ...getRunPodCanvasSize(generationOptions.assetType),
+        loraWeight: generationOptions.styleStrength,
+        seed: generationOptions.seed,
+        removeBackground: generationOptions.backgroundMode === "transparent",
+      });
+
+      const job = await prisma.generationJob.create({
+        data: {
+          userId: sessionUser.id,
+          providerJobId: runPodJob.id,
+          status: runPodJob.status || "PENDING",
+          cost: generationCost,
+          description: description || null,
+          title: description.slice(0, 48) || generationOptions.assetType,
+          category: generationOptions.assetType,
+          characterFeaturePrompt: characterFeaturePrompt || null,
+          prompt,
+          rewrittenPrompt,
+          referenceImageCount,
+          options: generationOptions,
+        },
+      });
+
+      return NextResponse.json(
+        {
+          job: {
+            id: job.id,
+            status: job.status,
+          },
+        },
+        { status: 202 },
+      );
+    }
+
     const inputBuffer = usesStyleTemplate
       ? await generateImageWithOpenAITemplate(rewrittenPrompt)
       : await generateImageWithRunPod({
           prompt: rewrittenPrompt,
           initImage: characterReferenceImage,
+          ...getRunPodCanvasSize(generationOptions.assetType),
+          loraWeight: generationOptions.styleStrength,
+          seed: generationOptions.seed,
+          removeBackground: generationOptions.backgroundMode === "transparent",
         });
-    const filename = `character-${sessionUser.id}-${Date.now()}.png`;
-    const outputBuffer = await pixelPostProcess(inputBuffer);
+    const filename = `${generationOptions.assetType}-${sessionUser.id}-${Date.now()}.png`;
+    const outputBuffer = await pixelPostProcess(inputBuffer, generationOptions);
     const imageUrl = await saveGeneratedImage({
       buffer: outputBuffer,
       filename,
@@ -524,6 +668,8 @@ export async function POST(req: NextRequest) {
         data: {
           userId: sessionUser.id,
           imageUrl,
+          title: description.slice(0, 48) || generationOptions.assetType,
+          category: generationOptions.assetType,
           description: description || null,
           characterFeaturePrompt: characterFeaturePrompt || null,
           prompt,
@@ -554,6 +700,9 @@ export async function POST(req: NextRequest) {
         id: billingResult.generation.id,
         imageUrl: billingResult.generation.imageUrl,
         description: billingResult.generation.description,
+        title: billingResult.generation.title,
+        category: billingResult.generation.category,
+        favorite: billingResult.generation.favorite,
         createdAt: billingResult.generation.createdAt.toISOString(),
       },
     });
@@ -575,5 +724,9 @@ export async function POST(req: NextRequest) {
       { error: "Generation failed. Please check your API key, account credits, or try again later." },
       { status: 500 },
     );
+  } finally {
+    if (lockedUserId) {
+      activeGenerationUsers.delete(lockedUserId);
+    }
   }
 }

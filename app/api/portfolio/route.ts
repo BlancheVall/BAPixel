@@ -60,6 +60,9 @@ export async function GET(req: NextRequest) {
       select: {
         id: true,
         imageUrl: true,
+        title: true,
+        category: true,
+        favorite: true,
         description: true,
         createdAt: true,
       },
@@ -75,6 +78,90 @@ export async function GET(req: NextRequest) {
     console.error(error);
 
     return NextResponse.json({ error: "Failed to load portfolio." }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const user = await getSessionUser(req);
+
+    if (!user) {
+      return NextResponse.json({ error: "Please log in first." }, { status: 401 });
+    }
+
+    const { generationId, title, category, favorite } = (await req.json()) as {
+      generationId?: unknown;
+      title?: unknown;
+      category?: unknown;
+      favorite?: unknown;
+    };
+
+    if (typeof generationId !== "string" || !generationId) {
+      return NextResponse.json({ error: "Generation id is required." }, { status: 400 });
+    }
+
+    const data: {
+      title?: string | null;
+      category?: string;
+      favorite?: boolean;
+    } = {};
+
+    if (typeof title === "string") {
+      data.title = title.trim().slice(0, 80) || null;
+    }
+
+    if (typeof category === "string" && ["character", "item", "monster", "scene"].includes(category)) {
+      data.category = category;
+    }
+
+    if (typeof favorite === "boolean") {
+      data.favorite = favorite;
+    }
+
+    if (Object.keys(data).length === 0) {
+      return NextResponse.json({ error: "No valid portfolio changes were provided." }, { status: 400 });
+    }
+
+    const updateResult = await prisma.generation.updateMany({
+      where: {
+        id: generationId,
+        userId: user.id,
+      },
+      data,
+    });
+
+    if (updateResult.count === 0) {
+      return NextResponse.json({ error: "Portfolio item was not found." }, { status: 404 });
+    }
+
+    const generation = await prisma.generation.findFirst({
+      where: {
+        id: generationId,
+        userId: user.id,
+      },
+      select: {
+        id: true,
+        imageUrl: true,
+        title: true,
+        category: true,
+        favorite: true,
+        description: true,
+        createdAt: true,
+      },
+    });
+
+    return NextResponse.json({
+      generation: generation
+        ? {
+            ...generation,
+            createdAt: generation.createdAt.toISOString(),
+          }
+        : null,
+    });
+  } catch (error) {
+    console.error(error);
+
+    return NextResponse.json({ error: "Failed to update portfolio item." }, { status: 500 });
   }
 }
 
