@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
         username,
         email,
         passwordHash: await hash(password, 12),
-        points: 20,
+        points: 1,
       },
     });
     const response = NextResponse.json({

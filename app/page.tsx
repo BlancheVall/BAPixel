@@ -5,7 +5,7 @@ import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 
 type Language = "zh" | "en";
 type Module = "character" | "animation" | "portfolio";
-type StyleTemplate = "japanese_rpg";
+type StyleTemplate = "none" | "japanese_rpg";
 type AuthMode = "login" | "register";
 
 type AuthUser = {
@@ -74,6 +74,21 @@ const styleTemplateOptions = [
   },
 ];
 
+const billingPackageArt: Record<string, { src: string; alt: string }> = {
+  starter_30: {
+    src: "/billing/coins-stack.png",
+    alt: "Pixel coin stack",
+  },
+  creator_300: {
+    src: "/billing/treasure-chest.png",
+    alt: "Pixel treasure chest",
+  },
+  studio_800: {
+    src: "/billing/treasure-pile.png",
+    alt: "Pixel treasure pile",
+  },
+};
+
 const copy = {
   zh: {
     appName: "AI Pixel Sprite Tool",
@@ -85,10 +100,14 @@ const copy = {
     portfolio: "作品集",
     optional: "可选",
     styleTemplate: "画风模板",
-    styleHint: "选择一张图片作为画风方向。",
+    styleHint: "默认不使用模板。使用模板会额外消耗 2 Point。",
+    noTemplate: "不使用模板",
+    noTemplateHint: "仅使用你的描述生成，消耗更低。",
+    templateExtraCost: "+2 Point",
+    referenceExtraCost: "+1 Point",
     label: "角色描述",
     upload: "角色参考图",
-    uploadHint: "可选。上传后会先分析角色特征，再用于生成。",
+    uploadHint: "可选。上传参考图会额外消耗 1 Point，用于让 ChatGPT 提取角色特征。",
     uploadButton: "上传图片",
     removeImage: "移除",
     placeholder: "例如：一个戴着紫色巫师帽的粉色长发女性法师",
@@ -97,9 +116,16 @@ const copy = {
     emptyError: "请输入角色描述或上传角色参考图。",
     failedError: "生成失败，请稍后再试。",
     requestError: "请求失败，请确认服务正在运行。",
+    loginExpiredError: "登录已过期，请重新登录。",
+    rateLimitError: "请求太频繁，请稍后再试。",
+    serverConfigError: "服务配置暂不可用，请联系支持。",
     uploadTooLarge: "参考图不能超过 10 MB。",
     info: "这个工具由 Blanche 开发和测试。",
     download: "下载 PNG",
+    delete: "删除",
+    confirmDeletePortfolioItem: "确定要删除这张作品吗？",
+    deletePortfolioFailed: "删除失败，请稍后再试。",
+    flipHorizontal: "左右翻转",
     emptyResult: "生成结果会显示在这里",
     animationTitle: "动画模块",
     animationIntro: "这里将用于后续角色动作、帧序列和 sprite sheet 生成。",
@@ -136,6 +162,7 @@ const copy = {
     googleLoginFailed: "Google 登录失败，请稍后再试。",
     copy: "复制",
     copied: "已复制",
+    copyImageUnsupported: "当前浏览器不支持复制图片，已复制图片链接。",
     rechargeTitle: "充值 Point",
     rechargeIntro: "选择一个 Point 套餐，付款成功后会自动加入余额。",
     checkout: "去付款",
@@ -145,6 +172,7 @@ const copy = {
     paymentSuccess: "付款成功，Point 已到账。",
     paymentCancel: "付款已取消。",
     close: "关闭",
+    legalLinks: "条款 / 隐私 / 退款 / 联系方式",
   },
   en: {
     appName: "AI Pixel Sprite Tool",
@@ -156,10 +184,14 @@ const copy = {
     portfolio: "Portfolio",
     optional: "Optional",
     styleTemplate: "Style Template",
-    styleHint: "Choose an image as the visual style direction.",
+    styleHint: "No template is used by default. Using a template costs 2 extra Points.",
+    noTemplate: "No Template",
+    noTemplateHint: "Use only your description for lower cost.",
+    templateExtraCost: "+2 Points",
+    referenceExtraCost: "+1 Point",
     label: "Character Description",
     upload: "Character Reference",
-    uploadHint: "Optional. Uploaded images are analyzed into detailed character features before generation.",
+    uploadHint: "Optional. Uploading a reference image costs 1 extra Point so ChatGPT can extract character details.",
     uploadButton: "Upload Image",
     removeImage: "Remove",
     placeholder: "Example: a female mage with long pink hair wearing a purple wizard hat",
@@ -168,9 +200,16 @@ const copy = {
     emptyError: "Please enter a character description or upload a character reference.",
     failedError: "Generation failed. Please try again later.",
     requestError: "Request failed. Please confirm the service is running.",
+    loginExpiredError: "Your session expired. Please log in again.",
+    rateLimitError: "Too many requests. Please try again later.",
+    serverConfigError: "Service configuration is unavailable. Please contact support.",
     uploadTooLarge: "Reference image must be under 10 MB.",
     info: "This tool was developed and tested by Blanche.",
     download: "Download PNG",
+    delete: "Delete",
+    confirmDeletePortfolioItem: "Delete this portfolio image?",
+    deletePortfolioFailed: "Failed to delete image. Please try again later.",
+    flipHorizontal: "Flip",
     emptyResult: "Generated result will appear here",
     animationTitle: "Animation Module",
     animationIntro: "This area will be used for character actions, frame sequences, and sprite sheets.",
@@ -207,6 +246,7 @@ const copy = {
     googleLoginFailed: "Google login failed. Please try again later.",
     copy: "Copy",
     copied: "Copied",
+    copyImageUnsupported: "This browser cannot copy images, so the image link was copied.",
     rechargeTitle: "Recharge Points",
     rechargeIntro: "Choose a Point package. Points are added automatically after payment.",
     checkout: "Checkout",
@@ -216,16 +256,19 @@ const copy = {
     paymentSuccess: "Payment succeeded. Points have been added.",
     paymentCancel: "Payment was canceled.",
     close: "Close",
+    legalLinks: "Terms / Privacy / Refunds / Contact",
   },
 };
 
 export default function Home() {
   const [language, setLanguage] = useState<Language>("zh");
   const [activeModule, setActiveModule] = useState<Module>("character");
-  const [styleTemplate, setStyleTemplate] = useState<StyleTemplate>("japanese_rpg");
+  const [styleTemplate, setStyleTemplate] = useState<StyleTemplate>("none");
   const [description, setDescription] = useState("");
   const [characterReferenceImage, setCharacterReferenceImage] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  const [generationImageApiUrl, setGenerationImageApiUrl] = useState("");
+  const [isImageFlipped, setIsImageFlipped] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [typedIntro, setTypedIntro] = useState("");
@@ -247,8 +290,10 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
+  const generatedImageRef = useRef<HTMLImageElement | null>(null);
   const t = copy[language];
   const canGenerate = Boolean(description.trim() || characterReferenceImage);
+  const generationCost = 1 + (styleTemplate === "none" ? 0 : 2) + (characterReferenceImage ? 1 : 0);
 
   async function refreshSession() {
     try {
@@ -622,7 +667,7 @@ export default function Home() {
       return;
     }
 
-    if (authUser.points < 1) {
+    if (authUser.points < generationCost) {
       setError(t.insufficientPoints);
       return;
     }
@@ -630,6 +675,8 @@ export default function Home() {
     setLoading(true);
     setError("");
     setImageUrl("");
+    setGenerationImageApiUrl("");
+    setIsImageFlipped(false);
     setCopied(false);
 
     try {
@@ -648,11 +695,26 @@ export default function Home() {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || t.failedError);
+        if (response.status === 401) {
+          setError(t.loginExpiredError);
+          setAuthUser(null);
+          openAuth("login");
+        } else if (response.status === 402) {
+          setError(t.insufficientPoints);
+        } else if (response.status === 413) {
+          setError(t.uploadTooLarge);
+        } else if (response.status === 429) {
+          setError(t.rateLimitError);
+        } else if (response.status >= 500) {
+          setError(data.error || t.serverConfigError);
+        } else {
+          setError(data.error || t.failedError);
+        }
         return;
       }
 
       setImageUrl(data.imageUrl);
+      setGenerationImageApiUrl(data.generation?.id ? `/api/generation-image?id=${encodeURIComponent(data.generation.id)}` : "");
       if (data.user) {
         saveSession(data.user as AuthUser);
       }
@@ -671,11 +733,10 @@ export default function Home() {
       return;
     }
 
-    const absoluteUrl = new URL(imageUrl, window.location.origin).toString();
+    const absoluteUrl = new URL(generationImageApiUrl || imageUrl, window.location.origin).toString();
 
     try {
-      const response = await fetch(imageUrl);
-      const blob = await response.blob();
+      const blob = await getDisplayedImageBlob();
 
       if ("ClipboardItem" in window && navigator.clipboard?.write) {
         await navigator.clipboard.write([
@@ -684,6 +745,7 @@ export default function Home() {
           }),
         ]);
       } else {
+        setError(t.copyImageUnsupported);
         await navigator.clipboard.writeText(absoluteUrl);
       }
 
@@ -693,6 +755,68 @@ export default function Home() {
       await navigator.clipboard.writeText(absoluteUrl);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1400);
+    }
+  }
+
+  async function getDisplayedImageBlob() {
+    const response = await fetch(generationImageApiUrl || imageUrl);
+    const blob = await response.blob();
+    const bitmap = await createImageBitmap(blob);
+
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      bitmap.close();
+      throw new Error("Canvas is unavailable.");
+    }
+
+    context.imageSmoothingEnabled = false;
+
+    if (isImageFlipped) {
+      context.translate(canvas.width, 0);
+      context.scale(-1, 1);
+    }
+
+    context.drawImage(bitmap, 0, 0);
+    bitmap.close();
+
+    return new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (blob) {
+          resolve(blob);
+        } else {
+          reject(new Error("Unable to export image."));
+        }
+      }, "image/png");
+    });
+  }
+
+  async function downloadDisplayedImage() {
+    if (!imageUrl) {
+      return;
+    }
+
+    try {
+      const blob = await getDisplayedImageBlob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = isImageFlipped ? "pixel-character-flipped.png" : "pixel-character.png";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      const link = document.createElement("a");
+      link.href = generationImageApiUrl || imageUrl;
+      link.download = "pixel-character.png";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
     }
   }
 
@@ -709,6 +833,33 @@ export default function Home() {
       });
     } catch {
       // The broken image is already hidden locally; the next portfolio load will retry cleanup.
+    }
+  }
+
+  async function deletePortfolioImage(generationId: string) {
+    if (!window.confirm(t.confirmDeletePortfolioItem)) {
+      return;
+    }
+
+    const previousItems = portfolioItems;
+    setPortfolioError("");
+    setPortfolioItems((items) => items.filter((item) => item.id !== generationId));
+
+    try {
+      const response = await fetch("/api/portfolio", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ generationId }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to delete portfolio image.");
+      }
+    } catch {
+      setPortfolioItems(previousItems);
+      setPortfolioError(t.deletePortfolioFailed);
     }
   }
 
@@ -866,6 +1017,9 @@ export default function Home() {
                           </p>
                           <p className="mt-1 text-xs leading-5 text-[#9f927d]">{t.uploadHint}</p>
                         </div>
+                        <span className="shrink-0 rounded-md border border-[#b88a3d] bg-[#3a2818] px-2.5 py-1 text-xs font-bold text-[#f0c36e]">
+                          {t.referenceExtraCost}
+                        </span>
                         {characterReferenceImage && (
                           <button
                             type="button"
@@ -909,27 +1063,57 @@ export default function Home() {
                       </div>
 
                       <div className="mt-3 grid grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          aria-label={t.noTemplate}
+                          onClick={() => setStyleTemplate("none")}
+                          className={`flex min-h-40 flex-col rounded-lg border p-3 text-left transition ${
+                            styleTemplate === "none"
+                              ? "border-[#b88a3d] bg-[#241d23] shadow-[0_0_0_1px_rgba(240,195,110,0.18)]"
+                              : "border-[#46384a] bg-[#0e1220] hover:border-[#6f5732]"
+                          }`}
+                        >
+                          <div className="flex flex-1 flex-col justify-between">
+                            <div>
+                              <span className="text-sm font-semibold text-[#fff2d4]">
+                                {t.noTemplate}
+                              </span>
+                              <span className="mt-2 block text-xs leading-5 text-[#9f927d]">
+                                {t.noTemplateHint}
+                              </span>
+                            </div>
+                          </div>
+                        </button>
                         {styleTemplateOptions.map((option) => (
                           <button
                             key={option.id}
                             type="button"
                             aria-label={option[language]}
                             onClick={() => setStyleTemplate(option.id)}
-                            className={`rounded-lg border p-2 transition ${
+                            className={`flex min-h-40 flex-col rounded-lg border p-3 text-left transition ${
                               styleTemplate === option.id
-                                ? "border-[#b88a3d] bg-[#241d23]"
+                                ? "border-[#b88a3d] bg-[#241d23] shadow-[0_0_0_1px_rgba(240,195,110,0.18)]"
                                 : "border-[#46384a] bg-[#0e1220] hover:border-[#6f5732]"
                             }`}
                           >
-                            <Image
-                              src={option.image}
-                              alt={option[language]}
-                              width={96}
-                              height={96}
-                              unoptimized
-                              className="aspect-square w-full rounded-md object-cover"
-                              style={{ imageRendering: "pixelated" }}
-                            />
+                            <div className="flex flex-1 flex-col justify-between gap-3">
+                              <div className="rounded-md bg-[#eadfca] p-2">
+                                <Image
+                                  src={option.image}
+                                  alt={option[language]}
+                                  width={96}
+                                  height={96}
+                                  unoptimized
+                                  className="aspect-square w-full rounded object-contain"
+                                  style={{ imageRendering: "pixelated" }}
+                                />
+                              </div>
+                              <div className="flex justify-center">
+                                <span className="inline-flex rounded-md border border-[#b88a3d] bg-[#3a2818] px-2.5 py-1 text-xs font-bold text-[#f0c36e] shadow-[0_0_12px_rgba(240,195,110,0.12)]">
+                                  {t.templateExtraCost}
+                                </span>
+                              </div>
+                            </div>
                           </button>
                         ))}
                       </div>
@@ -942,7 +1126,7 @@ export default function Home() {
                   disabled={loading || !canGenerate}
                   className="h-12 rounded-lg bg-[#8f3a35] px-5 text-base font-bold text-[#fff2d4] transition hover:bg-[#a8443d] disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {loading ? t.generating : `${t.generate} (${t.pointCost})`}
+                  {loading ? t.generating : `${t.generate} (${generationCost} Point)`}
                 </button>
 
                 {error && (
@@ -978,17 +1162,28 @@ export default function Home() {
                       width={128}
                       height={128}
                       unoptimized
+                      ref={generatedImageRef}
                       className="h-[min(512px,80vw)] w-[min(512px,80vw)] object-contain"
-                      style={{ imageRendering: "pixelated" }}
+                      style={{
+                        imageRendering: "pixelated",
+                        transform: isImageFlipped ? "scaleX(-1)" : "none",
+                      }}
                     />
                     <div className="flex flex-wrap justify-center gap-3">
-                      <a
-                        href={imageUrl}
-                        download
+                      <button
+                        type="button"
+                        onClick={downloadDisplayedImage}
                         className="rounded-lg border border-[#6f5732] bg-[#0e1220] px-4 py-2 text-sm font-semibold text-[#fff2d4] transition hover:border-[#4aa394]"
                       >
                         {t.download}
-                      </a>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsImageFlipped((flipped) => !flipped)}
+                        className="rounded-lg border border-[#6f5732] bg-[#0e1220] px-4 py-2 text-sm font-semibold text-[#fff2d4] transition hover:border-[#4aa394]"
+                      >
+                        {t.flipHorizontal}
+                      </button>
                       <button
                         type="button"
                         onClick={copyGeneratedImage}
@@ -1072,10 +1267,18 @@ export default function Home() {
                       href={item.imageUrl}
                       download
                       aria-label={t.download}
-                      className="absolute right-5 top-5 flex h-9 w-9 items-center justify-center rounded-lg border border-[#6f5732] bg-[#0e1220]/90 text-sm font-bold text-[#fff2d4] opacity-0 shadow-[0_8px_20px_rgba(0,0,0,0.35)] transition hover:border-[#4aa394] group-hover:opacity-100 group-focus-within:opacity-100"
+                      className="absolute right-5 top-5 flex h-9 w-9 items-center justify-center rounded-lg border border-[#6f5732] bg-[#0e1220]/90 text-sm font-bold text-[#fff2d4] opacity-100 shadow-[0_8px_20px_rgba(0,0,0,0.35)] transition hover:border-[#4aa394] sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
                     >
                       ↓
                     </a>
+                    <button
+                      type="button"
+                      onClick={() => void deletePortfolioImage(item.id)}
+                      aria-label={t.delete}
+                      className="absolute right-5 top-16 rounded-lg border border-[#6f5732] bg-[#0e1220]/90 px-3 py-2 text-xs font-bold text-[#ffb1a8] opacity-100 shadow-[0_8px_20px_rgba(0,0,0,0.35)] transition hover:border-[#8f3a35] hover:bg-[#2a1720] sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+                    >
+                      {t.delete}
+                    </button>
                   </article>
                 ))}
               </div>
@@ -1220,32 +1423,49 @@ export default function Home() {
             </div>
 
             <div className="mt-5 grid gap-3">
-              {billingPackages.map((pointPackage) => (
-                <button
-                  key={pointPackage.id}
-                  type="button"
-                  disabled={billingLoading}
-                  onClick={() => startCheckout(pointPackage.id)}
-                  className="flex items-center justify-between gap-4 rounded-lg border border-[#6f5732] bg-[#0e1220] p-4 text-left transition hover:border-[#4aa394] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <span>
-                    <span className="block text-base font-bold text-[#fff2d4]">
-                      {language === "zh" ? pointPackage.zhName : pointPackage.enName}
+              {billingPackages.map((pointPackage) => {
+                const packageArt = billingPackageArt[pointPackage.id];
+
+                return (
+                  <button
+                    key={pointPackage.id}
+                    type="button"
+                    disabled={billingLoading}
+                    onClick={() => startCheckout(pointPackage.id)}
+                    className="grid min-h-24 grid-cols-[1fr_auto_auto] items-center gap-4 rounded-lg border border-[#6f5732] bg-[#0e1220] p-4 text-left transition hover:border-[#4aa394] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <span>
+                      <span className="block text-base font-bold text-[#fff2d4]">
+                        {language === "zh" ? pointPackage.zhName : pointPackage.enName}
+                      </span>
+                      <span className="mt-1 block text-xs text-[#9f927d]">
+                        {pointPackage.points} Point
+                      </span>
                     </span>
-                    <span className="mt-1 block text-xs text-[#9f927d]">
-                      {pointPackage.points} Point
+                    {packageArt && (
+                      <span className="flex h-16 w-20 items-center justify-center overflow-visible">
+                        <Image
+                          src={packageArt.src}
+                          alt={packageArt.alt}
+                          width={86}
+                          height={86}
+                          unoptimized
+                          className="max-h-20 w-auto object-contain"
+                          style={{ imageRendering: "pixelated" }}
+                        />
+                      </span>
+                    )}
+                    <span className="text-right">
+                      <span className="block text-base font-bold text-[#f0c36e]">
+                        ${(pointPackage.amountCents / 100).toFixed(2).toUpperCase()}
+                      </span>
+                      <span className="mt-1 block text-xs text-[#9f927d]">
+                        {billingLoading ? t.checkoutLoading : t.checkout}
+                      </span>
                     </span>
-                  </span>
-                  <span className="text-right">
-                    <span className="block text-base font-bold text-[#f0c36e]">
-                      ${(pointPackage.amountCents / 100).toFixed(2).toUpperCase()}
-                    </span>
-                    <span className="mt-1 block text-xs text-[#9f927d]">
-                      {billingLoading ? t.checkoutLoading : t.checkout}
-                    </span>
-                  </span>
-                </button>
-              ))}
+                  </button>
+                );
+              })}
 
               {billingLoading && billingPackages.length === 0 && (
                 <div className="rounded-lg border border-[#46384a] bg-[#0e1220] p-4 text-sm text-[#9f927d]">
@@ -1262,6 +1482,11 @@ export default function Home() {
           </div>
         </div>
       )}
+      <footer className="px-6 pb-6 text-center text-xs text-[#7f735f]">
+        <a href="/terms" className="transition hover:text-[#c69a4a]">
+          {t.legalLinks}
+        </a>
+      </footer>
     </main>
   );
 }

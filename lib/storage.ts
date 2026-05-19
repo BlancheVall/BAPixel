@@ -1,4 +1,4 @@
-import { DeleteObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import fs from "fs/promises";
 import path from "path";
 
@@ -110,6 +110,46 @@ async function deleteFromObjectStorage(imageUrl: string) {
   return true;
 }
 
+async function readFromObjectStorage(imageUrl: string) {
+  const config = getObjectStorageConfig();
+  const key = getObjectKeyFromUrl(imageUrl);
+
+  if (!config || !key) {
+    return null;
+  }
+
+  const client = createObjectStorageClient(config);
+  const result = await client.send(
+    new GetObjectCommand({
+      Bucket: config.bucket,
+      Key: key,
+    }),
+  );
+
+  if (!result.Body) {
+    return null;
+  }
+
+  return {
+    buffer: Buffer.from(await result.Body.transformToByteArray()),
+    contentType: result.ContentType || "image/png",
+  };
+}
+
+async function readFromLocalPublic(imageUrl: string) {
+  if (!imageUrl.startsWith("/outputs/")) {
+    return null;
+  }
+
+  const filename = path.basename(imageUrl);
+  const outputPath = path.join(process.cwd(), "public", "outputs", filename);
+
+  return {
+    buffer: await fs.readFile(outputPath),
+    contentType: "image/png",
+  };
+}
+
 async function deleteFromLocalPublic(imageUrl: string) {
   if (!imageUrl.startsWith("/outputs/")) {
     return false;
@@ -142,4 +182,8 @@ export async function deleteGeneratedImage(imageUrl: string) {
   } catch (error) {
     console.error("Failed to delete generated image", error);
   }
+}
+
+export async function readGeneratedImage(imageUrl: string) {
+  return (await readFromObjectStorage(imageUrl)) ?? readFromLocalPublic(imageUrl);
 }

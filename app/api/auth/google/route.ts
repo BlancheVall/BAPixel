@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
         username: payload.name || email.split("@")[0],
         email,
         googleSub: payload.sub,
-        points: 20,
+        points: 1,
       },
     });
     const response = NextResponse.json({

@@ -11,17 +11,17 @@ export type PointPackage = {
 
 export const POINT_PACKAGES: PointPackage[] = [
   {
-    id: "starter_100",
-    points: 100,
-    amountCents: 900,
+    id: "starter_30",
+    points: 30,
+    amountCents: 190,
     currency: "usd",
-    zhName: "100 Point",
-    enName: "100 Points",
+    zhName: "30 Point",
+    enName: "30 Points",
   },
   {
     id: "creator_300",
     points: 300,
-    amountCents: 2400,
+    amountCents: 990,
     currency: "usd",
     zhName: "300 Point",
     enName: "300 Points",
@@ -29,7 +29,7 @@ export const POINT_PACKAGES: PointPackage[] = [
   {
     id: "studio_800",
     points: 800,
-    amountCents: 5900,
+    amountCents: 1990,
     currency: "usd",
     zhName: "800 Point",
     enName: "800 Points",

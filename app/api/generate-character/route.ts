@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI, { toFile } from "openai";
-import fs from "fs/promises";
+import { readFile } from "fs/promises";
 import path from "path";
 import sharp from "sharp";
 import { getSessionUser, publicUser } from "@/lib/auth";
@@ -13,182 +12,343 @@ import {
   MAX_REFERENCE_IMAGE_BYTES,
   readLimitedJson,
 } from "@/lib/request-guard";
+import { generateImageWithRunPod } from "@/lib/runpod";
 import { saveGeneratedImage } from "@/lib/storage";
 
 export const runtime = "nodejs";
 
-const MAX_STYLE_REFERENCE_IMAGES = 3;
-const SUPPORTED_REFERENCE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp"]);
+const BASE_GENERATION_COST = 1;
+const TEMPLATE_EXTRA_COST = 2;
+const REFERENCE_IMAGE_EXTRA_COST = 1;
+const PROMPT_HELPER_MODEL = process.env.PROMPT_HELPER_MODEL || "gpt-4.1-mini";
+const OPENAI_IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || "gpt-image-1";
+const OPENAI_IMAGE_QUALITY = process.env.OPENAI_IMAGE_QUALITY || "medium";
+const TEMPLATE_STYLE_REFERENCE_FILES = [
+  "001.png",
+  "003.png",
+  "005.png",
+  "009.png",
+  "010.png",
+  "015.png",
+  "050.png",
+  "082.png",
+  "083.png",
+  "147.png",
+];
 
-function buildPixelPrompt(description: string, characterFeaturePrompt: string) {
-  const characterDescription = [
-    description ? `Character description: ${description}` : "",
-    characterFeaturePrompt
-      ? `Additional character details extracted from the uploaded reference image: ${characterFeaturePrompt}`
-      : "",
-  ]
-    .filter(Boolean)
-    .join("\n\n");
+type OpenAITextPart = {
+  type: "input_text";
+  text: string;
+};
 
+type OpenAIImagePart = {
+  type: "input_image";
+  image_url: string;
+};
+
+type OpenAIResponseContent = {
+  text?: string;
+};
+
+type OpenAIResponseOutput = {
+  content?: OpenAIResponseContent[];
+};
+
+type OpenAIResponsesPayload = {
+  output_text?: string;
+  output?: OpenAIResponseOutput[];
+};
+
+type OpenAIImagePayload = {
+  data?: Array<{
+    b64_json?: string;
+    url?: string;
+  }>;
+  error?: {
+    message?: string;
+  };
+};
+
+function buildOpenAITemplatePrompt(characterPrompt: string) {
   return `Create exactly one centered full-body RPG pixel character sprite on a fully transparent background.
 
-${characterDescription}
+Character description: ${characterPrompt || "fantasy RPG character"}
 
-The character should follow the user's description and include only iconic equipment directly implied by the role, such as a simple staff for a mage, a bow for an archer, a sword or axe for a warrior, or tools for an alchemist. Do not copy any exact reference character.
+Use the provided reference images only for the visual style, not for character identity. The character should follow the character description and include only iconic equipment directly implied by the role. Do not copy any exact reference character.
 
-Style: cute but detailed Korean RPG fantasy adventurer sprite, chibi proportions about 2.5-3 heads tall, large readable head and eyes, simplified face with eyes only and no mouth, thick black pixel outline around the full silhouette, smaller dark internal outline lines for hair, clothes, props, equipment, and limbs. Use large pixel blocks, low-resolution sprite look, chunky visible pixels, 8-bit / 16x16 / 32x32 sprite aesthetic, limited color palette, hard edges, nearest-neighbor scaling, retro game sprite style, big pixel art. Clean blocky pixel clusters with crisp square edges, readable outfit structure, layered color blocks, small highlight blocks, decorative trims, clear silhouette, and readable role equipment.
+Style: cute but detailed Korean RPG fantasy adventurer sprite, chibi proportions about 2.5-3 heads tall, large readable head and eyes, simplified face with eyes only and no mouth, thick black pixel outline around the full silhouette, smaller dark internal outline lines for hair, clothes, equipment, and limbs. Use large pixel blocks, low-resolution sprite look, chunky visible pixels, 8-bit / 16x16 / 32x32 sprite aesthetic, limited color palette, hard edges, nearest-neighbor scaling, retro game sprite style, big pixel art. Clean blocky pixel clusters with crisp square edges, readable outfit structure, layered color blocks, small highlight blocks, decorative trims, and clear readable character silhouette.
 
-Composition: one single character only, full body, centered, near front-facing, standing pose, with a small margin around the character. The image should look like an enlarged polished 32x32 RPG sprite preview, not a raw tiny icon.
+Composition: one single character only, full body, centered, near front-facing 3/4 view, turned slightly toward screen right, standing pose, with a small margin around the character. The image should look like an enlarged polished 32x32 RPG sprite preview, not a raw tiny icon.
 
 Background and exclusions: transparent alpha background outside the character silhouette. No shadows of any kind: no cast shadow, no drop shadow, no ground shadow, no soft shadow, no ambient shadow, no silhouette shadow. No glow. No background scene, no studio background, no gradient, no vignette, no UI frame. Do not create a collage, sprite sheet, character selection screen, grid, multiple characters, text, or watermark. No blurry edges, no anti-aliasing, no painterly texture, no realistic rendering.`;
 }
 
-function getMimeType(filePath: string) {
-  const extension = path.extname(filePath).toLowerCase();
-
-  if (extension === ".jpg" || extension === ".jpeg") {
-    return "image/jpeg";
-  }
-
-  if (extension === ".webp") {
-    return "image/webp";
-  }
-
-  return "image/png";
-}
-
-async function dataUrlToReferenceImage(dataUrl: string) {
-  const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
-
-  if (!match) {
-    return null;
-  }
-
-  const mimeType = match[1];
-
-  if (!["image/png", "image/jpeg", "image/jpg", "image/webp"].includes(mimeType)) {
-    return null;
-  }
-
-  return {
-    input: {
-      type: "input_image" as const,
-      detail: "high" as const,
-      image_url: dataUrl,
-    },
-  };
-}
-
-async function describeCharacterReference(client: OpenAI, characterReference: Awaited<ReturnType<typeof dataUrlToReferenceImage>>) {
-  if (!characterReference) {
-    return "";
-  }
-
-  const response = await client.responses.create({
-    model: "gpt-5.5",
-    input: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "input_text",
-            text: `
-Describe only the character's appearance and clothing from this reference image.
-
-Return a detailed appearance-and-outfit prompt only. Include only:
-- character type/species/gender presentation if visible
-- face and hair/head details
-- outfit, armor, accessories, props, and weapons
-- clothing materials, shapes, layers, ornaments, and color placement
-- main character colors and accent colors
-- distinctive appearance or costume features to preserve
-
-Do not describe art style, image style, pixel style, rendering style, quality, resolution, lighting, shadows, camera, composition, pose, gesture, action, movement, framing, background, mood, or environment.
-Do not mention that this is an image. Do not explain.
-`,
-          },
-          characterReference.input,
-        ],
-      },
-    ],
-  });
-
-  return response.output_text?.trim() ?? "";
-}
-
-async function rewritePromptWithCharacterReference(
-  client: OpenAI,
-  prompt: string,
-  characterReference: Awaited<ReturnType<typeof dataUrlToReferenceImage>>,
+function buildPixelPrompt(
+  characterTags: string,
+  usesStyleTemplate: boolean,
 ) {
-  if (!characterReference) {
+  if (!usesStyleTemplate) {
+    return [
+      "(masterpiece, top quality, best quality)",
+      "pixel",
+      "pixel art",
+      "game sprite",
+      "single character",
+      "full body",
+      "centered",
+      "solo",
+      "transparent background",
+      "simple background",
+      "front 3/4 view",
+      "standing pose",
+      "clean silhouette",
+      "chunky pixels",
+      "limited color palette",
+      "hard edges",
+      characterTags || "fantasy RPG character",
+    ]
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  return [
+    "(masterpiece, top quality, best quality)",
+    "pixel",
+    "pixel art",
+    "Korean RPG fantasy adventurer sprite",
+    "cute chibi character",
+    "single character",
+    "full body",
+    "centered",
+    "solo",
+    "transparent background",
+    "front 3/4 view",
+    "standing pose",
+    "clean silhouette",
+    "thick outline",
+    "chunky pixels",
+    "limited color palette",
+    "hard edges",
+    characterTags || "fantasy RPG character",
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function applyRunPodPromptPrefix(prompt: string) {
+  const loraTrigger = process.env.RUNPOD_LORA_TRIGGER?.trim();
+
+  if (!loraTrigger) {
     return prompt;
   }
 
-  const response = await client.responses.create({
-    model: "gpt-5.5",
-    input: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "input_text",
-            text: `
-You are a senior prompt writer for GPT Image API.
-Use the attached reference image to refine the following image-generation prompt into one final prompt.
-
-Rules:
-- Use the attached image only to preserve character identity, outfit, palette, and any visible style details that help create a same-style RPG pixel character.
-- Preserve the user's text description as the highest priority. The user's text can add or override image details.
-- Keep the same output format and constraints from the source prompt.
-- Keep the composition near front-facing only. Do not use the phrase front-facing by itself.
-- Preserve transparent background, one character only, no shadows, no glow, no UI, no text, no watermark, no grid, no sprite sheet.
-- Return only the final prompt text. Do not explain.
-
-Source request:
-${prompt}
-`,
-          },
-          characterReference.input,
-        ],
-      },
-    ],
-  });
-
-  const rewrittenPrompt = response.output_text?.trim();
-
-  if (!rewrittenPrompt) {
-    throw new Error("GPT-5.5 did not return a final prompt.");
+  if (prompt.toLowerCase().split(",").map((part) => part.trim()).includes(loraTrigger.toLowerCase())) {
+    return prompt;
   }
 
-  return rewrittenPrompt;
+  return `${loraTrigger}, ${prompt}`;
 }
 
-async function loadStyleReferenceImages() {
-  const referenceDir = path.join(process.cwd(), "referenceImage");
-  const entries = await fs.readdir(referenceDir, { withFileTypes: true });
-  const imageNames = entries
-    .filter((entry) => entry.isFile())
-    .map((entry) => entry.name)
-    .filter((name) => SUPPORTED_REFERENCE_EXTENSIONS.has(path.extname(name).toLowerCase()))
-    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
-    .slice(0, MAX_STYLE_REFERENCE_IMAGES);
+function extractResponseText(payload: OpenAIResponsesPayload) {
+  if (payload.output_text) {
+    return payload.output_text;
+  }
 
-  const images = await Promise.all(
-    imageNames.map(async (name) => {
-      const filePath = path.join(referenceDir, name);
-      const buffer = await fs.readFile(filePath);
+  return payload.output
+    ?.flatMap((item) => item.content || [])
+    .map((content) => content.text || "")
+    .join("\n") || "";
+}
 
-      return toFile(buffer, name, {
-        type: getMimeType(filePath),
-      });
+function cleanSdTags(value: string) {
+  return value
+    .replace(/```[\s\S]*?```/g, (match) => match.replace(/```/g, ""))
+    .replace(/^tags\s*:/i, "")
+    .replace(/\n+/g, ", ")
+    .replace(/\s*,\s*/g, ", ")
+    .replace(/,+/g, ",")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^,|,$/g, "")
+    .slice(0, 1200);
+}
+
+async function generateCharacterTagsWithChatGPT(description: string, characterReferenceImage: string) {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY is not configured.");
+  }
+
+  const content: Array<OpenAITextPart | OpenAIImagePart> = [
+    {
+      type: "input_text",
+      text: `Convert the user's character request into concise Stable Diffusion / Danbooru-style prompt tags for a pixel-art character generator.
+
+Return one comma-separated tag line only. No markdown, no explanation, no sentence.
+
+Rules:
+- Preserve the user's intended character identity, gender presentation, hair, clothing, role, props, colors, species traits, and visible reference-image details.
+- Translate Chinese or English descriptions into English SD tags.
+- Prefer tags like: 1girl, 1boy, solo, long hair, pink hair, mage, staff, dress, armor, cat ears.
+- Include only character/content tags. Do not include quality tags, LoRA trigger words, model names, sampler settings, aspect ratio, resolution, background instructions, or negative prompt.
+- If the user asks for a scene/building/object, output suitable concise tags for that subject instead of forcing a character.
+- If both text and reference image are provided, text has priority and the image is only for visual details.
+
+User description:
+${description || "(none; use the reference image if provided)"}`,
+    },
+  ];
+
+  if (characterReferenceImage) {
+    content.push({
+      type: "input_image",
+      image_url: characterReferenceImage,
+    });
+  }
+
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: PROMPT_HELPER_MODEL,
+      input: [
+        {
+          role: "user",
+          content,
+        },
+      ],
+      max_output_tokens: 220,
     }),
-  );
+  });
 
-  return {
-    uploadImages: images,
-    count: imageNames.length,
-  };
+  const payload = (await response.json()) as OpenAIResponsesPayload & { error?: { message?: string } };
+
+  if (!response.ok) {
+    throw new Error(payload.error?.message || "ChatGPT prompt generation failed.");
+  }
+
+  const tags = cleanSdTags(extractResponseText(payload));
+
+  if (!tags) {
+    throw new Error("ChatGPT did not return prompt tags.");
+  }
+
+  return tags;
+}
+
+async function generateTemplateCharacterPromptWithChatGPT(description: string, characterReferenceImage: string) {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY is not configured.");
+  }
+
+  const content: Array<OpenAITextPart | OpenAIImagePart> = [
+    {
+      type: "input_text",
+      text: `Create a concise English character prompt for an image generator.
+
+Return one short prompt fragment only. No markdown, no explanation.
+
+Rules:
+- Describe only the character identity, visible body traits, hair, outfit, colors, role, species traits, and key props.
+- Do not include pixel-art style, quality words, camera, background, transparency, aspect ratio, model names, or negative prompt.
+- If both text and image are provided, the user's text has priority and the image is only for visible character details.
+- Translate Chinese into natural English.
+
+User description:
+${description || "(none; use the reference image if provided)"}`,
+    },
+  ];
+
+  if (characterReferenceImage) {
+    content.push({
+      type: "input_image",
+      image_url: characterReferenceImage,
+    });
+  }
+
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: PROMPT_HELPER_MODEL,
+      input: [
+        {
+          role: "user",
+          content,
+        },
+      ],
+      max_output_tokens: 220,
+    }),
+  });
+
+  const payload = (await response.json()) as OpenAIResponsesPayload & { error?: { message?: string } };
+
+  if (!response.ok) {
+    throw new Error(payload.error?.message || "ChatGPT template prompt generation failed.");
+  }
+
+  return extractResponseText(payload)
+    .replace(/```[\s\S]*?```/g, (match) => match.replace(/```/g, ""))
+    .replace(/\n+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 1200);
+}
+
+async function generateImageWithOpenAITemplate(prompt: string) {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY is not configured.");
+  }
+
+  const formData = new FormData();
+  formData.append("model", OPENAI_IMAGE_MODEL);
+  formData.append("prompt", prompt);
+  formData.append("n", "1");
+  formData.append("size", "1024x1024");
+  formData.append("quality", OPENAI_IMAGE_QUALITY);
+  formData.append("background", "transparent");
+  formData.append("output_format", "png");
+
+  for (const filename of TEMPLATE_STYLE_REFERENCE_FILES) {
+    const imagePath = path.join(process.cwd(), "referenceImage", filename);
+    const buffer = await readFile(imagePath);
+    formData.append("image", new Blob([buffer], { type: "image/png" }), filename);
+  }
+
+  const response = await fetch("https://api.openai.com/v1/images/edits", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+    },
+    body: formData,
+  });
+
+  const payload = (await response.json()) as OpenAIImagePayload;
+
+  if (!response.ok) {
+    throw new Error(payload.error?.message || "OpenAI image generation failed.");
+  }
+
+  const image = payload.data?.[0];
+
+  if (image?.b64_json) {
+    return Buffer.from(image.b64_json, "base64");
+  }
+
+  if (image?.url) {
+    const imageResponse = await fetch(image.url);
+    if (!imageResponse.ok) {
+      throw new Error("Failed to download generated OpenAI image.");
+    }
+    return Buffer.from(await imageResponse.arrayBuffer());
+  }
+
+  throw new Error("OpenAI image generation returned no image.");
 }
 
 async function pixelPostProcess(inputBuffer: Buffer) {
@@ -208,10 +368,6 @@ export async function POST(req: NextRequest) {
 
     if (!sessionUser) {
       return NextResponse.json({ error: "Please log in before generating an image." }, { status: 401 });
-    }
-
-    if (sessionUser.points < 1) {
-      return NextResponse.json({ error: "Not enough Points to generate an image." }, { status: 402 });
     }
 
     const userLimit = checkRateLimit({
@@ -247,14 +403,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const client = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
-
     const body = await readLimitedJson(req);
     const description = String(body.description || "").trim();
+    const styleTemplate = body.styleTemplate === "japanese_rpg" ? "japanese_rpg" : "none";
+    const usesStyleTemplate = styleTemplate !== "none";
     const characterReferenceImage =
       typeof body.characterReferenceImage === "string" ? body.characterReferenceImage : "";
+    const usesReferenceImage = Boolean(characterReferenceImage);
+    const generationCost =
+      BASE_GENERATION_COST +
+      (usesStyleTemplate ? TEMPLATE_EXTRA_COST : 0) +
+      (usesReferenceImage ? REFERENCE_IMAGE_EXTRA_COST : 0);
+
+    if (!usesStyleTemplate && (!process.env.RUNPOD_API_KEY || !process.env.RUNPOD_ENDPOINT_ID)) {
+      return NextResponse.json(
+        { error: "Please configure RUNPOD_API_KEY and RUNPOD_ENDPOINT_ID in .env.local first." },
+        { status: 500 },
+      );
+    }
+
+    if (sessionUser.points < generationCost) {
+      return NextResponse.json({ error: "Not enough Points to generate an image." }, { status: 402 });
+    }
 
     if (description.length > MAX_DESCRIPTION_LENGTH) {
       return NextResponse.json(
@@ -273,50 +443,33 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const characterReference = characterReferenceImage
-      ? await dataUrlToReferenceImage(characterReferenceImage)
-      : null;
-
-    if (!description && !characterReference) {
+    if (!description && !characterReferenceImage) {
       return NextResponse.json(
         { error: "Please enter a character description or upload a character reference image." },
         { status: 400 },
       );
     }
 
-    const characterFeaturePrompt = await describeCharacterReference(client, characterReference);
-    const prompt = buildPixelPrompt(description, characterFeaturePrompt);
-    const rewrittenPrompt = await rewritePromptWithCharacterReference(client, prompt, characterReference);
-    const styleReferenceImages = await loadStyleReferenceImages();
-
-    if (styleReferenceImages.count === 0) {
-      return NextResponse.json(
-        { error: "No png, jpg, jpeg, or webp reference images were found in referenceImage." },
-        { status: 500 },
-      );
-    }
-
-    const result = await client.images.edit({
-      model: "gpt-image-1.5",
-      image: styleReferenceImages.uploadImages,
-      prompt: rewrittenPrompt,
-      size: "1024x1024",
-      quality: "high",
-      background: "transparent",
-      output_format: "png",
-      input_fidelity: "high",
-    });
-
-    const imageBase64 = result.data?.[0]?.b64_json;
-
-    if (!imageBase64) {
-      return NextResponse.json(
-        { error: "Image generation failed. No image data was returned." },
-        { status: 500 },
-      );
-    }
-
-    const inputBuffer = Buffer.from(imageBase64, "base64");
+    const characterFeaturePrompt = usesStyleTemplate
+      ? usesReferenceImage
+        ? await generateTemplateCharacterPromptWithChatGPT(description, characterReferenceImage)
+        : description || "fantasy RPG character"
+      : await generateCharacterTagsWithChatGPT(description, characterReferenceImage);
+    const prompt = usesStyleTemplate
+      ? buildOpenAITemplatePrompt(characterFeaturePrompt)
+      : buildPixelPrompt(characterFeaturePrompt, false);
+    const rewrittenPrompt = usesStyleTemplate ? prompt : applyRunPodPromptPrefix(prompt);
+    const referenceImageCount = usesStyleTemplate
+      ? TEMPLATE_STYLE_REFERENCE_FILES.length
+      : characterReferenceImage && process.env.RUNPOD_ENABLE_INIT_IMAGE === "true"
+        ? 1
+        : 0;
+    const inputBuffer = usesStyleTemplate
+      ? await generateImageWithOpenAITemplate(rewrittenPrompt)
+      : await generateImageWithRunPod({
+          prompt: rewrittenPrompt,
+          initImage: characterReferenceImage,
+        });
     const filename = `character-${sessionUser.id}-${Date.now()}.png`;
     const outputBuffer = await pixelPostProcess(inputBuffer);
     const imageUrl = await saveGeneratedImage({
@@ -330,12 +483,12 @@ export async function POST(req: NextRequest) {
         where: {
           id: sessionUser.id,
           points: {
-            gte: 1,
+            gte: generationCost,
           },
         },
         data: {
           points: {
-            decrement: 1,
+            decrement: generationCost,
           },
         },
       });
@@ -347,9 +500,18 @@ export async function POST(req: NextRequest) {
       await tx.pointTransaction.create({
         data: {
           userId: sessionUser.id,
-          amount: -1,
+          amount: -generationCost,
           type: "SPEND",
-          note: "AI character generation",
+          note: `AI character generation${
+            usesStyleTemplate || usesReferenceImage
+              ? ` with ${[
+                  usesStyleTemplate ? "style template" : "",
+                  usesReferenceImage ? "reference image" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" and ")}`
+              : ""
+          }`,
         },
       });
 
@@ -366,7 +528,7 @@ export async function POST(req: NextRequest) {
           characterFeaturePrompt: characterFeaturePrompt || null,
           prompt,
           rewrittenPrompt,
-          referenceImageCount: styleReferenceImages.count,
+          referenceImageCount,
         },
       });
 
@@ -385,7 +547,7 @@ export async function POST(req: NextRequest) {
       prompt,
       rewrittenPrompt,
       characterFeaturePrompt,
-      referenceImageCount: styleReferenceImages.count,
+      referenceImageCount,
       usedCharacterFeaturePrompt: Boolean(characterFeaturePrompt),
       user: billingResult.updatedUser ? publicUser(billingResult.updatedUser) : null,
       generation: {
