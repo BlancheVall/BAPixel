@@ -35,3 +35,33 @@ label:has(input[type="file"]) {
 button:disabled {
   cursor: not-allowed;
 }
+
+@keyframes landing-copy-rise {
+  from {
+    opacity: 0;
+    transform: translateY(34px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes landing-mask-fade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.landing-copy-rise {
+  animation: landing-copy-rise 1.2s ease-out 0.8s both;
+}
+
+.landing-mask-fade {
+  animation: landing-mask-fade 1.2s ease-out 0s both;
+}

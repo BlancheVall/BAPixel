@@ -89,10 +89,30 @@ const billingPackageArt: Record<string, { src: string; alt: string }> = {
   },
 };
 
+const landingCharacters = [
+  {
+    src: "/landing/hero-character-1.png",
+    alt: "Pixel mage character",
+  },
+  {
+    src: "/landing/hero-character-2.png",
+    alt: "Pixel magic character",
+  },
+  {
+    src: "/landing/hero-character-3.png",
+    alt: "Pixel maid character",
+  },
+];
+
 const copy = {
   zh: {
     appName: "AI Pixel Sprite Tool",
-    title: "像素角色生成器",
+    title: "BAPixel",
+    landingTitle: "BAPixel",
+    landingSubtitle: "Create RPG pixel sprites from prompts and references.",
+    landingTagline: "Create anything as you wish.",
+    landingEyebrow: "AI PIXEL SPRITE TOOL",
+    getStart: "Get Start",
     intro: "输入角色描述或上传角色参考图，选择画风模板，生成 128x128 像素 PNG。",
     language: "语言",
     character: "角色",
@@ -175,7 +195,12 @@ const copy = {
   },
   en: {
     appName: "AI Pixel Sprite Tool",
-    title: "Pixel Character Generator",
+    title: "BAPixel",
+    landingTitle: "BAPixel",
+    landingSubtitle: "Create RPG pixel sprites from prompts and references.",
+    landingTagline: "Create anything as you wish.",
+    landingEyebrow: "AI PIXEL SPRITE TOOL",
+    getStart: "Get Start",
     intro: "Enter a character description or upload a character reference, choose a style template, and generate a 128x128 pixel PNG.",
     language: "Language",
     character: "Character",
@@ -260,6 +285,7 @@ const copy = {
 
 export default function Home() {
   const [language, setLanguage] = useState<Language>("zh");
+  const [showLanding, setShowLanding] = useState(true);
   const [activeModule, setActiveModule] = useState<Module>("character");
   const [styleTemplate, setStyleTemplate] = useState<StyleTemplate>("none");
   const [description, setDescription] = useState("");
@@ -859,6 +885,174 @@ export default function Home() {
       setPortfolioItems(previousItems);
       setPortfolioError(t.deletePortfolioFailed);
     }
+  }
+
+  if (showLanding) {
+    return (
+      <main className="relative min-h-screen overflow-hidden bg-black text-[#fff2d4]">
+        <nav className="relative z-20 border-b border-[#6f5732] bg-[#171b2b] text-[#eadfca] shadow-[0_8px_28px_rgba(0,0,0,0.35)]">
+          <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-5 py-4 sm:px-8 lg:px-10 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:gap-5">
+              <div className="flex flex-col gap-1">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#c69a4a]">
+                  {t.appName}
+                </p>
+                <h1 className="text-2xl font-bold tracking-normal text-[#fff2d4]">
+                  {t.title}
+                </h1>
+              </div>
+
+              <div className="flex rounded-lg border border-[#6f5732] bg-[#0e1220] p-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveModule("character");
+                    setShowLanding(false);
+                  }}
+                  className="h-9 rounded-md bg-[#b88a3d] px-4 text-sm font-semibold text-[#10131f] transition"
+                >
+                  {t.character}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveModule("portfolio");
+                    setShowLanding(false);
+                  }}
+                  className="h-9 rounded-md px-4 text-sm font-semibold text-[#eadfca] transition hover:bg-[#242b43]"
+                >
+                  {t.portfolio}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              {authUser ? (
+                <div className="flex items-center gap-2">
+                  <div className="flex h-10 items-center gap-2 rounded-full border border-[#8d6f37] bg-[#1d1924] px-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                    <span className="rounded-full border border-[#b88a3d] bg-[#3a2a1a] px-2 py-0.5 text-[10px] font-bold uppercase text-[#f0c36e]">
+                      {t.points}
+                    </span>
+                    <span className="text-sm font-bold text-[#f0c36e]">
+                      {authUser.points}
+                    </span>
+                    <span className="h-4 w-px bg-[#6f5732]" />
+                    <button
+                      type="button"
+                      onClick={openBilling}
+                      className="rounded-full px-1.5 py-0.5 text-xs font-bold text-[#fff2d4] transition hover:bg-[#3a1f2b] hover:text-[#f0c36e]"
+                    >
+                      {t.recharge}
+                    </button>
+                  </div>
+                  <div className="flex h-12 items-center gap-3 rounded-lg border border-[#6f5732] bg-[#0e1220] px-3">
+                    <p className="max-w-32 truncate text-sm font-semibold text-[#fff2d4]">
+                      {authUser.username}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={logout}
+                      className="rounded-md border border-[#6f5732] px-2 py-1 text-xs font-semibold text-[#eadfca] transition hover:border-[#b88a3d]"
+                    >
+                      {t.logout}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openAuth("login")}
+                    className="h-10 rounded-lg border border-[#6f5732] bg-[#0e1220] px-4 text-sm font-semibold text-[#fff2d4] transition hover:border-[#4aa394]"
+                  >
+                    {t.login}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openAuth("register")}
+                    className="h-10 rounded-lg bg-[#8f3a35] px-4 text-sm font-bold text-[#fff2d4] transition hover:bg-[#a8443d]"
+                  >
+                    {t.register}
+                  </button>
+                </div>
+              )}
+
+              <label className="flex h-10 items-center gap-2 rounded-lg border border-[#6f5732] bg-[#0e1220] px-3 text-sm text-[#d8cbb5] xl:absolute xl:right-8 xl:top-4">
+                <span>{t.language}</span>
+                <select
+                  value={language}
+                  onChange={(event) => setLanguage(event.target.value as Language)}
+                  className="h-8 rounded-md border border-[#6f5732] bg-[#171b2b] px-2 text-sm font-semibold text-[#fff2d4] outline-none transition focus:border-[#4aa394]"
+                >
+                  <option value="zh">中文</option>
+                  <option value="en">English</option>
+                </select>
+              </label>
+            </div>
+          </div>
+        </nav>
+
+        <Image
+          src="/landing/pixel-map-bg.jpg"
+          alt="Pixel fantasy map background"
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover"
+          style={{ imageRendering: "pixelated" }}
+        />
+        <div className="landing-mask-fade absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.9)_0%,rgba(0,0,0,0.68)_25%,rgba(0,0,0,0.34)_54%,rgba(0,0,0,0.56)_100%)]" />
+        <div className="landing-mask-fade absolute inset-0 bg-[radial-gradient(circle_at_62%_36%,rgba(255,221,141,0.14),transparent_34%),linear-gradient(180deg,rgba(0,0,0,0.24)_0%,rgba(0,0,0,0.06)_42%,rgba(0,0,0,0.78)_100%)]" />
+
+        <section className="relative z-10 grid min-h-[calc(100vh-81px)] grid-cols-1 lg:grid-cols-[280px_1fr]">
+          <aside className="border-b border-white/10 bg-black/72 px-5 py-7 shadow-[20px_0_60px_rgba(0,0,0,0.42)] backdrop-blur-sm lg:border-b-0 lg:border-r lg:px-6">
+            <p className="text-xs font-bold tracking-[0.26em] text-[#f0c36e]">
+              {t.landingEyebrow}
+            </p>
+            <div className="mt-8 grid grid-cols-3 gap-4 lg:grid-cols-1 lg:gap-5">
+              {landingCharacters.map((character, index) => (
+                <div
+                  key={character.src}
+                  className="flex aspect-square items-center justify-center rounded-lg border border-[#6f5732]/70 bg-[#080a10]/88 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_20px_40px_rgba(0,0,0,0.35)] lg:h-[25vh] lg:min-h-36 lg:max-h-44 lg:aspect-auto"
+                >
+                  <Image
+                    src={character.src}
+                    alt={character.alt}
+                    width={170}
+                    height={170}
+                    priority={index === 0}
+                    unoptimized
+                    className="h-[72%] w-[72%] object-contain"
+                    style={{ imageRendering: "pixelated" }}
+                  />
+                </div>
+              ))}
+            </div>
+          </aside>
+
+          <div className="relative flex min-h-[62vh] flex-col items-center justify-center px-6 py-10 text-center lg:min-h-[calc(100vh-81px)] lg:px-12">
+            <div className="landing-copy-rise max-w-3xl">
+              <h1 className="text-5xl font-black tracking-normal text-[#fff2d4] drop-shadow-[0_6px_24px_rgba(0,0,0,0.75)] sm:text-7xl lg:text-8xl">
+                {t.landingTitle}
+              </h1>
+              <p className="mx-auto mt-5 max-w-xl text-2xl font-black leading-8 text-[#f0c36e] drop-shadow-[0_4px_18px_rgba(0,0,0,0.8)] sm:text-3xl">
+                {t.landingTagline}
+              </p>
+              <p className="mx-auto mt-5 max-w-xl text-base font-semibold leading-7 text-[#eadfca]/88 drop-shadow-[0_4px_18px_rgba(0,0,0,0.8)] sm:text-lg">
+                {t.landingSubtitle}
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowLanding(false)}
+                className="mt-9 h-14 rounded-lg border border-[#f0c36e]/70 bg-[#8f3a35] px-10 text-base font-black text-[#fff2d4] shadow-[0_18px_45px_rgba(0,0,0,0.52),inset_0_1px_0_rgba(255,255,255,0.18)] transition hover:border-[#fff2d4] hover:bg-[#a8443d] focus:outline-none focus:ring-2 focus:ring-[#f0c36e]"
+              >
+                {t.getStart}
+              </button>
+            </div>
+          </div>
+        </section>
+      </main>
+    );
   }
 
   return (
