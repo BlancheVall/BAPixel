@@ -102,12 +102,11 @@ const copy = {
     styleTemplate: "画风模板",
     styleHint: "默认不使用模板。使用模板会额外消耗 2 Point。",
     noTemplate: "不使用模板",
-    noTemplateHint: "仅使用你的描述生成，消耗更低。",
     templateExtraCost: "+2 Point",
     referenceExtraCost: "+1 Point",
     label: "角色描述",
     upload: "角色参考图",
-    uploadHint: "可选。上传参考图会额外消耗 1 Point，用于让 ChatGPT 提取角色特征。",
+    uploadHint: "可选。上传参考图会额外消耗 1 Point。",
     uploadButton: "上传图片",
     removeImage: "移除",
     placeholder: "例如：一个戴着紫色巫师帽的粉色长发女性法师",
@@ -186,12 +185,11 @@ const copy = {
     styleTemplate: "Style Template",
     styleHint: "No template is used by default. Using a template costs 2 extra Points.",
     noTemplate: "No Template",
-    noTemplateHint: "Use only your description for lower cost.",
     templateExtraCost: "+2 Points",
     referenceExtraCost: "+1 Point",
     label: "Character Description",
     upload: "Character Reference",
-    uploadHint: "Optional. Uploading a reference image costs 1 extra Point so ChatGPT can extract character details.",
+    uploadHint: "Optional. Uploading a reference image costs 1 extra Point.",
     uploadButton: "Upload Image",
     removeImage: "Remove",
     placeholder: "Example: a female mage with long pink hair wearing a purple wizard hat",
@@ -1077,9 +1075,6 @@ export default function Home() {
                             <div>
                               <span className="text-sm font-semibold text-[#fff2d4]">
                                 {t.noTemplate}
-                              </span>
-                              <span className="mt-2 block text-xs leading-5 text-[#9f927d]">
-                                {t.noTemplateHint}
                               </span>
                             </div>
                           </div>
