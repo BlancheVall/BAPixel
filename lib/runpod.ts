@@ -25,6 +25,14 @@ function numberFromEnv(name: string, fallback: number) {
   return Number.isFinite(value) ? value : fallback;
 }
 
+function getSeedValue(seed: number | undefined) {
+  if (Number.isFinite(seed)) {
+    return seed;
+  }
+
+  return Math.floor(Math.random() * 2147483647);
+}
+
 function stripDataUrl(value: string) {
   const match = value.match(/^data:[^;]+;base64,(.+)$/);
 
@@ -136,7 +144,7 @@ export async function generateImageWithRunPod({
     height: height || numberFromEnv("RUNPOD_HEIGHT", 768),
     num_inference_steps: Number.isFinite(steps) ? steps : numberFromEnv("RUNPOD_STEPS", 28),
     guidance_scale: Number.isFinite(guidanceScale) ? guidanceScale : numberFromEnv("RUNPOD_GUIDANCE_SCALE", 7),
-    seed: Number.isFinite(seed) ? seed : numberFromEnv("RUNPOD_SEED", -1),
+    seed: getSeedValue(seed),
     lora_weight: Number.isFinite(loraWeight) ? loraWeight : numberFromEnv("RUNPOD_LORA_WEIGHT", 0.5),
   };
 
@@ -221,7 +229,7 @@ function buildRunPodInput({
     height: height || numberFromEnv("RUNPOD_HEIGHT", 768),
     num_inference_steps: Number.isFinite(steps) ? steps : numberFromEnv("RUNPOD_STEPS", 28),
     guidance_scale: Number.isFinite(guidanceScale) ? guidanceScale : numberFromEnv("RUNPOD_GUIDANCE_SCALE", 7),
-    seed: Number.isFinite(seed) ? seed : numberFromEnv("RUNPOD_SEED", -1),
+    seed: getSeedValue(seed),
     lora_weight: Number.isFinite(loraWeight) ? loraWeight : numberFromEnv("RUNPOD_LORA_WEIGHT", 0.5),
   };
 

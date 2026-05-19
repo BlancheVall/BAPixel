@@ -9,7 +9,6 @@ type StyleTemplate = "none" | "japanese_rpg";
 type AuthMode = "login" | "register";
 type AssetType = "character" | "item" | "monster" | "scene";
 type Direction = "screen_right" | "front" | "back" | "left" | "right";
-type BackgroundMode = "transparent" | "simple";
 
 type AuthUser = {
   username: string;
@@ -110,13 +109,6 @@ const landingCharacters = [
   },
 ];
 
-const assetTypeOptions: Array<{ id: AssetType; zh: string; en: string }> = [
-  { id: "character", zh: "角色", en: "Character" },
-  { id: "item", zh: "道具", en: "Item" },
-  { id: "monster", zh: "怪物", en: "Monster" },
-  { id: "scene", zh: "场景", en: "Scene" },
-];
-
 const directionOptions: Array<{ id: Direction; zh: string; en: string }> = [
   { id: "screen_right", zh: "朝右", en: "Right" },
   { id: "front", zh: "正面", en: "Front" },
@@ -125,6 +117,35 @@ const directionOptions: Array<{ id: Direction; zh: string; en: string }> = [
 ];
 
 const outputSizeOptions = [128, 256, 512] as const;
+type SpriteAnimation = "idle" | "walk";
+
+function getSpriteOffsets(kind: SpriteAnimation) {
+  return kind === "idle"
+    ? [
+        [0, 0],
+        [0, -2],
+        [0, 0],
+        [0, 1],
+      ]
+    : [
+        [-3, 0],
+        [0, -2],
+        [3, 0],
+        [0, 1],
+      ];
+}
+
+function drawSpriteFrame(
+  context: CanvasRenderingContext2D,
+  bitmap: ImageBitmap,
+  frameSize: number,
+  frameIndex: number,
+  kind: SpriteAnimation,
+  targetX = 0,
+) {
+  const [x, y] = getSpriteOffsets(kind)[frameIndex];
+  context.drawImage(bitmap, targetX + x, y, frameSize, frameSize);
+}
 
 const copy = {
   zh: {
@@ -135,7 +156,7 @@ const copy = {
     landingTagline: "Create anything as you wish.",
     landingEyebrow: "AI PIXEL SPRITE TOOL",
     getStart: "Get Start",
-    intro: "输入描述或上传参考图，选择资产类型、方向和尺寸，生成像素 PNG。",
+    intro: "输入描述或上传参考图，选择方向和尺寸，生成像素 PNG。",
     language: "语言",
     character: "角色",
     animation: "动画",
@@ -153,12 +174,8 @@ const copy = {
     removeImage: "移除",
     placeholder: "例如：一个戴着紫色巫师帽的粉色长发女性法师",
     generationSettings: "生成设置",
-    assetType: "资产类型",
     direction: "方向",
     outputSize: "导出尺寸",
-    backgroundMode: "背景",
-    transparentBackground: "透明",
-    simpleBackground: "简洁背景",
     styleStrength: "画风强度",
     seed: "Seed",
     randomSeed: "随机",
@@ -216,10 +233,14 @@ const copy = {
     regenerateSimilar: "再次生成相似",
     rename: "命名",
     favorite: "收藏",
-    exportIdleSheet: "导出 Idle 4帧",
-    exportWalkSheet: "导出 Walk 4帧",
-    editPixels: "编辑像素",
+    spritePreview: "动作预览",
+    idle: "Idle",
+    walk: "Walk",
+    exportSpriteSheet: "导出 Sprite",
+    exportGif: "导出 GIF",
+    editPixels: "在编辑器中编辑",
     pixelEditorTitle: "像素编辑",
+    zoom: "缩放",
     brush: "画笔",
     eraser: "橡皮",
     undo: "撤销",
@@ -246,7 +267,7 @@ const copy = {
     landingTagline: "Create anything as you wish.",
     landingEyebrow: "AI PIXEL SPRITE TOOL",
     getStart: "Get Start",
-    intro: "Enter a prompt or upload a reference, choose asset type, direction, and size, then generate a pixel PNG.",
+    intro: "Enter a prompt or upload a reference, choose direction and size, then generate a pixel PNG.",
     language: "Language",
     character: "Character",
     animation: "Animation",
@@ -264,12 +285,8 @@ const copy = {
     removeImage: "Remove",
     placeholder: "Example: a female mage with long pink hair wearing a purple wizard hat",
     generationSettings: "Generation Settings",
-    assetType: "Asset Type",
     direction: "Direction",
     outputSize: "Export Size",
-    backgroundMode: "Background",
-    transparentBackground: "Transparent",
-    simpleBackground: "Simple",
     styleStrength: "Style Strength",
     seed: "Seed",
     randomSeed: "Random",
@@ -327,10 +344,14 @@ const copy = {
     regenerateSimilar: "Regenerate Similar",
     rename: "Rename",
     favorite: "Favorite",
-    exportIdleSheet: "Export Idle 4F",
-    exportWalkSheet: "Export Walk 4F",
-    editPixels: "Pixel Edit",
+    spritePreview: "Animation Preview",
+    idle: "Idle",
+    walk: "Walk",
+    exportSpriteSheet: "Export Sprite",
+    exportGif: "Export GIF",
+    editPixels: "Edit in Pixel Editor",
     pixelEditorTitle: "Pixel Editor",
+    zoom: "Zoom",
     brush: "Brush",
     eraser: "Eraser",
     undo: "Undo",
@@ -356,10 +377,8 @@ export default function Home() {
   const [showLanding, setShowLanding] = useState(true);
   const [activeModule, setActiveModule] = useState<Module>("character");
   const [styleTemplate, setStyleTemplate] = useState<StyleTemplate>("none");
-  const [assetType, setAssetType] = useState<AssetType>("character");
   const [direction, setDirection] = useState<Direction>("screen_right");
   const [outputSize, setOutputSize] = useState<128 | 256 | 512>(128);
-  const [backgroundMode, setBackgroundMode] = useState<BackgroundMode>("transparent");
   const [styleStrength, setStyleStrength] = useState(0.5);
   const [seed, setSeed] = useState("");
   const [description, setDescription] = useState("");
@@ -374,7 +393,9 @@ export default function Home() {
   const [pixelEditorOpen, setPixelEditorOpen] = useState(false);
   const [pixelTool, setPixelTool] = useState<"brush" | "eraser">("brush");
   const [pixelColor, setPixelColor] = useState("#fff2d4");
+  const [pixelEditorZoom, setPixelEditorZoom] = useState(4);
   const [pixelUndoStack, setPixelUndoStack] = useState<string[]>([]);
+  const [spriteAnimation, setSpriteAnimation] = useState<SpriteAnimation>("idle");
   const [portfolioItems, setPortfolioItems] = useState<PortfolioGeneration[]>([]);
   const [portfolioLoading, setPortfolioLoading] = useState(false);
   const [portfolioError, setPortfolioError] = useState("");
@@ -394,6 +415,7 @@ export default function Home() {
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
   const generatedImageRef = useRef<HTMLImageElement | null>(null);
   const pixelCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const spritePreviewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const t = copy[language];
   const canGenerate = Boolean(description.trim() || characterReferenceImage);
   const generationCost = 1 + (styleTemplate === "none" ? 0 : 2) + (characterReferenceImage ? 1 : 0);
@@ -586,6 +608,71 @@ export default function Home() {
 
     loadPackages();
   }, [billingOpen, billingPackages.length, t.packageLoadFailed]);
+
+  useEffect(() => {
+    if (!imageUrl) {
+      return;
+    }
+
+    let cancelled = false;
+    let timer: number | undefined;
+    let bitmap: ImageBitmap | null = null;
+
+    async function renderSpritePreview() {
+      try {
+        const response = await fetch(generationImageApiUrl || imageUrl);
+        const blob = await response.blob();
+        bitmap = await createImageBitmap(blob);
+        const frameSize = Math.max(bitmap.width, bitmap.height);
+        const canvas = spritePreviewCanvasRef.current;
+        const context = canvas?.getContext("2d");
+
+        if (!canvas || !context || cancelled) {
+          bitmap.close();
+          bitmap = null;
+          return;
+        }
+
+        canvas.width = frameSize;
+        canvas.height = frameSize;
+        context.imageSmoothingEnabled = false;
+        let frame = 0;
+
+        const draw = () => {
+          if (!context || !bitmap) {
+            return;
+          }
+
+          context.clearRect(0, 0, frameSize, frameSize);
+          if (isImageFlipped) {
+            context.save();
+            context.translate(frameSize, 0);
+            context.scale(-1, 1);
+            drawSpriteFrame(context, bitmap, frameSize, frame, spriteAnimation);
+            context.restore();
+          } else {
+            drawSpriteFrame(context, bitmap, frameSize, frame, spriteAnimation);
+          }
+          frame = (frame + 1) % 4;
+        };
+
+        draw();
+        timer = window.setInterval(draw, 130);
+      } catch {
+        // Preview is optional; export/download still works if this fails.
+      }
+    }
+
+    renderSpritePreview();
+
+    return () => {
+      cancelled = true;
+      if (timer) {
+        window.clearInterval(timer);
+      }
+      bitmap?.close();
+    };
+  }, [generationImageApiUrl, imageUrl, isImageFlipped, spriteAnimation]);
 
   function openAuth(mode: AuthMode) {
     setAuthMode(mode);
@@ -792,10 +879,10 @@ export default function Home() {
           description: trimmedDescription,
           styleTemplate,
           characterReferenceImage: characterReferenceImage || null,
-          assetType,
+          assetType: "character",
           direction,
           outputSize,
-          backgroundMode,
+          backgroundMode: "transparent",
           styleStrength,
           seed: seed.trim() ? Number(seed) : null,
         }),
@@ -976,62 +1063,111 @@ export default function Home() {
     }
   }
 
-  async function exportSpriteSheet(kind: "idle" | "walk") {
+  async function createSpriteSheetBlob(kind: SpriteAnimation) {
+    const blob = await getDisplayedImageBlob();
+    const bitmap = await createImageBitmap(blob);
+    const frameSize = Math.max(bitmap.width, bitmap.height);
+    const canvas = document.createElement("canvas");
+    canvas.width = frameSize * 4;
+    canvas.height = frameSize;
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      bitmap.close();
+      throw new Error("Canvas is unavailable.");
+    }
+
+    context.imageSmoothingEnabled = false;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+
+    for (let index = 0; index < 4; index += 1) {
+      drawSpriteFrame(context, bitmap, frameSize, index, kind, index * frameSize);
+    }
+
+    bitmap.close();
+
+    return new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((sheetBlob) => {
+        if (sheetBlob) {
+          resolve(sheetBlob);
+        } else {
+          reject(new Error("Unable to export sprite sheet."));
+        }
+      }, "image/png");
+    });
+  }
+
+  async function exportSpriteSheet(kind: SpriteAnimation) {
     if (!imageUrl) {
       return;
     }
 
     try {
-      const blob = await getDisplayedImageBlob();
+      const sheetBlob = await createSpriteSheetBlob(kind);
+      const url = URL.createObjectURL(sheetBlob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `pixel-${kind}-sheet.png`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setError(t.failedError);
+    }
+  }
+
+  async function exportSpriteGif(kind: SpriteAnimation) {
+    if (!imageUrl) {
+      return;
+    }
+
+    try {
+      const [{ GIFEncoder, quantize, applyPalette }, blob] = await Promise.all([
+        import("gifenc"),
+        getDisplayedImageBlob(),
+      ]);
       const bitmap = await createImageBitmap(blob);
       const frameSize = Math.max(bitmap.width, bitmap.height);
-      const canvas = document.createElement("canvas");
-      canvas.width = frameSize * 4;
-      canvas.height = frameSize;
-      const context = canvas.getContext("2d");
+      const gif = GIFEncoder();
+      const frameCanvas = document.createElement("canvas");
+      frameCanvas.width = frameSize;
+      frameCanvas.height = frameSize;
+      const frameContext = frameCanvas.getContext("2d", { willReadFrequently: true });
 
-      if (!context) {
+      if (!frameContext) {
         bitmap.close();
-        return;
+        throw new Error("Canvas is unavailable.");
       }
 
-      context.imageSmoothingEnabled = false;
-      context.clearRect(0, 0, canvas.width, canvas.height);
-
-      const offsets =
-        kind === "idle"
-          ? [
-              [0, 0],
-              [0, -2],
-              [0, 0],
-              [0, 1],
-            ]
-          : [
-              [-3, 0],
-              [0, -2],
-              [3, 0],
-              [0, 1],
-            ];
-
-      offsets.forEach(([x, y], index) => {
-        context.drawImage(bitmap, index * frameSize + x, y, frameSize, frameSize);
-      });
+      frameContext.imageSmoothingEnabled = false;
+      for (let index = 0; index < 4; index += 1) {
+        frameContext.clearRect(0, 0, frameSize, frameSize);
+        drawSpriteFrame(frameContext, bitmap, frameSize, index, kind);
+        const rgba = frameContext.getImageData(0, 0, frameSize, frameSize).data;
+        const palette = quantize(rgba, 256);
+        const indexed = applyPalette(rgba, palette);
+        gif.writeFrame(indexed, frameSize, frameSize, {
+          palette,
+          delay: 130,
+          transparent: true,
+        });
+      }
       bitmap.close();
+      gif.finish();
 
-      canvas.toBlob((sheetBlob) => {
-        if (!sheetBlob) {
-          return;
-        }
-
-        const url = URL.createObjectURL(sheetBlob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `pixel-${kind}-sheet.png`;
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        URL.revokeObjectURL(url);
-      }, "image/png");
+      const gifBytes = gif.bytes();
+      const gifBuffer = new ArrayBuffer(gifBytes.byteLength);
+      new Uint8Array(gifBuffer).set(gifBytes);
+      const gifBlob = new Blob([gifBuffer], { type: "image/gif" });
+      const url = URL.createObjectURL(gifBlob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `pixel-${kind}.gif`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
     } catch {
       setError(t.failedError);
     }
@@ -1170,9 +1306,6 @@ export default function Home() {
 
   function regeneratePortfolioItem(item: PortfolioGeneration) {
     setDescription(item.description || item.title || "");
-    if (["character", "item", "monster", "scene"].includes(String(item.category))) {
-      setAssetType(item.category as AssetType);
-    }
     setActiveModule("character");
   }
 
@@ -1647,35 +1780,14 @@ export default function Home() {
 
                       <div className="mt-3 flex flex-col gap-4">
                         <div>
-                          <p className="mb-2 text-xs font-semibold text-[#9f927d]">{t.assetType}</p>
-                          <div className="grid grid-cols-2 gap-2">
-                            {assetTypeOptions.map((option) => (
-                              <button
-                                key={option.id}
-                                type="button"
-                                onClick={() => setAssetType(option.id)}
-                                className={`rounded-md border px-3 py-2 text-xs font-bold transition ${
-                                  assetType === option.id
-                                    ? "border-[#b88a3d] bg-[#b88a3d] text-[#10131f]"
-                                    : "border-[#46384a] bg-[#0e1220] text-[#eadfca] hover:border-[#6f5732]"
-                                }`}
-                              >
-                                {option[language]}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div>
                           <p className="mb-2 text-xs font-semibold text-[#9f927d]">{t.direction}</p>
                           <div className="grid grid-cols-4 gap-2">
                             {directionOptions.map((option) => (
                               <button
                                 key={option.id}
                                 type="button"
-                                disabled={assetType === "scene"}
                                 onClick={() => setDirection(option.id)}
-                                className={`rounded-md border px-2 py-2 text-xs font-bold transition disabled:opacity-40 ${
+                                className={`rounded-md border px-2 py-2 text-xs font-bold transition ${
                                   direction === option.id
                                     ? "border-[#b88a3d] bg-[#3a2818] text-[#f0c36e]"
                                     : "border-[#46384a] bg-[#0e1220] text-[#eadfca] hover:border-[#6f5732]"
@@ -1687,53 +1799,41 @@ export default function Home() {
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <p className="mb-2 text-xs font-semibold text-[#9f927d]">{t.outputSize}</p>
-                            <div className="flex gap-2">
-                              {outputSizeOptions.map((size) => (
-                                <button
-                                  key={size}
-                                  type="button"
-                                  onClick={() => setOutputSize(size)}
-                                  className={`rounded-md border px-2.5 py-2 text-xs font-bold transition ${
-                                    outputSize === size
-                                      ? "border-[#b88a3d] bg-[#3a2818] text-[#f0c36e]"
-                                      : "border-[#46384a] bg-[#0e1220] text-[#eadfca] hover:border-[#6f5732]"
-                                  }`}
-                                >
-                                  {size}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-
-                          <div>
-                            <p className="mb-2 text-xs font-semibold text-[#9f927d]">{t.backgroundMode}</p>
-                            <select
-                              value={backgroundMode}
-                              onChange={(event) => setBackgroundMode(event.target.value as BackgroundMode)}
-                              className="h-9 w-full rounded-md border border-[#46384a] bg-[#0e1220] px-2 text-xs font-bold text-[#eadfca] outline-none focus:border-[#4aa394]"
-                            >
-                              <option value="transparent">{t.transparentBackground}</option>
-                              <option value="simple">{t.simpleBackground}</option>
-                            </select>
+                        <div>
+                          <p className="mb-2 text-xs font-semibold text-[#9f927d]">{t.outputSize}</p>
+                          <div className="flex gap-2">
+                            {outputSizeOptions.map((size) => (
+                              <button
+                                key={size}
+                                type="button"
+                                onClick={() => setOutputSize(size)}
+                                className={`rounded-md border px-2.5 py-2 text-xs font-bold transition ${
+                                  outputSize === size
+                                    ? "border-[#b88a3d] bg-[#3a2818] text-[#f0c36e]"
+                                    : "border-[#46384a] bg-[#0e1220] text-[#eadfca] hover:border-[#6f5732]"
+                                }`}
+                              >
+                                {size}
+                              </button>
+                            ))}
                           </div>
                         </div>
 
                         <div className="grid grid-cols-[1fr_88px] gap-3">
-                          <label className="text-xs font-semibold text-[#9f927d]">
-                            {t.styleStrength}: {styleStrength.toFixed(1)}
-                            <input
-                              type="range"
-                              min="0.1"
-                              max="1"
-                              step="0.1"
-                              value={styleStrength}
-                              onChange={(event) => setStyleStrength(Number(event.target.value))}
-                              className="mt-2 w-full accent-[#b88a3d]"
-                            />
-                          </label>
+                          <div>
+                            <label className="text-xs font-semibold text-[#9f927d]">
+                              {t.styleStrength}: {styleStrength.toFixed(1)}
+                              <input
+                                type="range"
+                                min="0.1"
+                                max="1"
+                                step="0.1"
+                                value={styleStrength}
+                                onChange={(event) => setStyleStrength(Number(event.target.value))}
+                                className="mt-2 w-full accent-[#b88a3d]"
+                              />
+                            </label>
+                          </div>
                           <label className="text-xs font-semibold text-[#9f927d]">
                             {t.seed}
                             <input
@@ -1822,24 +1922,58 @@ export default function Home() {
                       >
                         {copied ? t.copied : t.copy}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => void exportSpriteSheet("idle")}
-                        className="rounded-lg border border-[#6f5732] bg-[#0e1220] px-4 py-2 text-sm font-semibold text-[#fff2d4] transition hover:border-[#4aa394]"
-                      >
-                        {t.exportIdleSheet}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void exportSpriteSheet("walk")}
-                        className="rounded-lg border border-[#6f5732] bg-[#0e1220] px-4 py-2 text-sm font-semibold text-[#fff2d4] transition hover:border-[#4aa394]"
-                      >
-                        {t.exportWalkSheet}
-                      </button>
+                    </div>
+
+                    <div className="w-full max-w-sm rounded-lg border border-[#46384a] bg-[#0e1220] p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-bold text-[#eadfca]">{t.spritePreview}</p>
+                        <div className="flex rounded-md border border-[#46384a] bg-[#171b2b] p-1">
+                          {(["idle", "walk"] as const).map((kind) => (
+                            <button
+                              key={kind}
+                              type="button"
+                              onClick={() => setSpriteAnimation(kind)}
+                              className={`rounded px-2.5 py-1 text-xs font-bold transition ${
+                                spriteAnimation === kind
+                                  ? "bg-[#b88a3d] text-[#10131f]"
+                                  : "text-[#eadfca] hover:bg-[#242b43]"
+                              }`}
+                            >
+                              {kind === "idle" ? t.idle : t.walk}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="mt-3 flex items-center justify-center rounded-md border border-[#26304b] bg-[#171b2b] p-3">
+                        <canvas
+                          ref={spritePreviewCanvasRef}
+                          className="h-28 w-28"
+                          style={{ imageRendering: "pixelated" }}
+                        />
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void exportSpriteSheet(spriteAnimation)}
+                          className="rounded-lg border border-[#6f5732] bg-[#171b2b] px-3 py-2 text-sm font-semibold text-[#fff2d4] transition hover:border-[#4aa394]"
+                        >
+                          {t.exportSpriteSheet}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void exportSpriteGif(spriteAnimation)}
+                          className="rounded-lg border border-[#6f5732] bg-[#171b2b] px-3 py-2 text-sm font-semibold text-[#fff2d4] transition hover:border-[#4aa394]"
+                        >
+                          {t.exportGif}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex w-full justify-center">
                       <button
                         type="button"
                         onClick={() => void openPixelEditor()}
-                        className="rounded-lg border border-[#6f5732] bg-[#0e1220] px-4 py-2 text-sm font-semibold text-[#fff2d4] transition hover:border-[#4aa394]"
+                        className="rounded-lg border border-[#f0c36e] bg-[#b88a3d] px-5 py-2.5 text-sm font-black text-[#10131f] shadow-[0_10px_24px_rgba(184,138,61,0.22)] transition hover:border-[#fff2d4] hover:bg-[#f0c36e]"
                       >
                         {t.editPixels}
                       </button>
@@ -2020,11 +2154,27 @@ export default function Home() {
                   onPointerDown={beginPixelStroke}
                   onPointerMove={drawPixel}
                   className="max-h-[480px] max-w-full rounded border border-[#6f5732] bg-transparent"
-                  style={{ imageRendering: "pixelated", width: "min(480px, 90vw)", height: "min(480px, 90vw)" }}
+                  style={{
+                    imageRendering: "pixelated",
+                    width: `${Math.min(outputSize * pixelEditorZoom, 520)}px`,
+                    height: `${Math.min(outputSize * pixelEditorZoom, 520)}px`,
+                  }}
                 />
               </div>
 
               <div className="flex flex-col gap-3">
+                <label className="text-xs font-semibold text-[#9f927d]">
+                  {t.zoom}: {pixelEditorZoom}x
+                  <input
+                    type="range"
+                    min="2"
+                    max="8"
+                    step="1"
+                    value={pixelEditorZoom}
+                    onChange={(event) => setPixelEditorZoom(Number(event.target.value))}
+                    className="mt-2 w-full accent-[#b88a3d]"
+                  />
+                </label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
