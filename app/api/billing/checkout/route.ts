@@ -19,19 +19,23 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const packageId = String(body.packageId || "");
+    const paymentMethod = body.paymentMethod === "alipay" ? "alipay" : "card";
     const pointPackage = getPointPackage(packageId);
 
     if (!pointPackage) {
       return errorResponse("BILL-CHECKOUT-PACKAGE", "Unknown Point package.", 400);
     }
 
+    const checkoutCurrency = paymentMethod === "alipay" ? "cny" : pointPackage.currency;
+    const checkoutAmountCents = paymentMethod === "alipay" ? pointPackage.amountCents * 4 : pointPackage.amountCents;
+
     const purchase = await prisma.pointPurchase.create({
       data: {
         userId: user.id,
         packageId: pointPackage.id,
         points: pointPackage.points,
-        amountCents: pointPackage.amountCents,
-        currency: pointPackage.currency,
+        amountCents: checkoutAmountCents,
+        currency: checkoutCurrency,
       },
     });
 
@@ -39,15 +43,15 @@ export async function POST(req: NextRequest) {
     const stripe = getStripe();
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
-      payment_method_types: ["card", "alipay"],
+      payment_method_types: [paymentMethod],
       customer_email: user.email,
       client_reference_id: user.id,
       line_items: [
         {
           quantity: 1,
           price_data: {
-            currency: pointPackage.currency,
-            unit_amount: pointPackage.amountCents,
+            currency: checkoutCurrency,
+            unit_amount: checkoutAmountCents,
             product_data: {
               name: `Pixel Sprite ${pointPackage.points} Points`,
               description: "Point credits for AI pixel character generation.",
@@ -59,6 +63,7 @@ export async function POST(req: NextRequest) {
         purchaseId: purchase.id,
         userId: user.id,
         packageId: pointPackage.id,
+        paymentMethod,
         points: String(pointPackage.points),
       },
       success_url: `${baseUrl}/?payment=success&session_id={CHECKOUT_SESSION_ID}`,

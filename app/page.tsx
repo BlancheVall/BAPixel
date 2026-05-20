@@ -9,6 +9,7 @@ type StyleTemplate = "none" | "japanese_rpg";
 type AuthMode = "login" | "register";
 type AssetType = "character" | "item" | "monster" | "scene";
 type Direction = "screen_right" | "front" | "back" | "left" | "right";
+type BillingPaymentMethod = "card" | "alipay";
 
 type AuthUser = {
   username: string;
@@ -257,6 +258,9 @@ const copy = {
     checkout: "去付款",
     checkoutLoading: "正在打开付款页...",
     checkoutFailed: "无法打开付款页，请稍后再试。",
+    paymentMethod: "\u652f\u4ed8\u65b9\u5f0f",
+    cardPayment: "\u94f6\u884c\u5361",
+    alipayPayment: "\u652f\u4ed8\u5b9d",
     packageLoadFailed: "加载套餐失败，请稍后再试。",
     paymentSuccess: "付款成功，Point 已到账。",
     paymentCancel: "付款已取消。",
@@ -373,6 +377,9 @@ const copy = {
     checkout: "Checkout",
     checkoutLoading: "Opening checkout...",
     checkoutFailed: "Unable to open checkout. Please try again later.",
+    paymentMethod: "Payment Method",
+    cardPayment: "Card",
+    alipayPayment: "Alipay",
     packageLoadFailed: "Failed to load packages. Please try again later.",
     paymentSuccess: "Payment succeeded. Points have been added.",
     paymentCancel: "Payment was canceled.",
@@ -415,6 +422,7 @@ export default function Home() {
   const [authError, setAuthError] = useState("");
   const [billingOpen, setBillingOpen] = useState(false);
   const [billingPackages, setBillingPackages] = useState<PointPackage[]>([]);
+  const [billingPaymentMethod, setBillingPaymentMethod] = useState<BillingPaymentMethod>("card");
   const [billingLoading, setBillingLoading] = useState(false);
   const [billingError, setBillingError] = useState("");
   const [paymentMessage, setPaymentMessage] = useState("");
@@ -745,7 +753,7 @@ export default function Home() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ packageId }),
+        body: JSON.stringify({ packageId, paymentMethod: billingPaymentMethod }),
       });
       const data = await response.json();
 
@@ -2591,8 +2599,34 @@ export default function Home() {
             </div>
 
             <div className="mt-6 grid gap-3">
+              <div className="rounded-lg border border-[#2a3142] bg-[#0b1020] p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#8f9aaf]">
+                  {t.paymentMethod}
+                </p>
+                <div className="mt-3 grid grid-cols-2 gap-2 rounded-lg border border-[#2a3142] bg-[#080b13] p-1">
+                  {(["card", "alipay"] as const).map((method) => (
+                    <button
+                      key={method}
+                      type="button"
+                      disabled={billingLoading}
+                      onClick={() => setBillingPaymentMethod(method)}
+                      className={`h-10 rounded-md px-4 text-sm font-bold transition ${
+                        billingPaymentMethod === method
+                          ? "bg-[#d99a2b] text-[#18181b]"
+                          : "text-[#d9deea] hover:bg-[#20283a]"
+                      } disabled:cursor-not-allowed disabled:opacity-60`}
+                    >
+                      {method === "card" ? t.cardPayment : t.alipayPayment}
+                    </button>
+                  ))}
+                </div>
+              </div>
               {billingPackages.map((pointPackage) => {
                 const packageArt = billingPackageArt[pointPackage.id];
+                const displayedPrice =
+                  billingPaymentMethod === "alipay"
+                    ? `¥${((pointPackage.amountCents * 4) / 100).toFixed(2)}`
+                    : `$${(pointPackage.amountCents / 100).toFixed(2).toUpperCase()}`;
 
                 return (
                   <button
@@ -2625,7 +2659,7 @@ export default function Home() {
                     )}
                     <span className="text-right">
                       <span className="block text-base font-bold text-[#f0b84f]">
-                        ${(pointPackage.amountCents / 100).toFixed(2).toUpperCase()}
+                        {displayedPrice}
                       </span>
                       <span className="mt-1 block text-xs text-[#8f9aaf]">
                         {billingLoading ? t.checkoutLoading : t.checkout}
