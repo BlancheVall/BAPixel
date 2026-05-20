@@ -1787,196 +1787,196 @@ export default function Home() {
                     />
                   </div>
 
-                  <div className="flex flex-col gap-4">
-                    <div className="rounded-lg border border-[#2a3142] bg-[#151b2b] p-6">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-[#d9deea]">
-                            {t.upload} <span className="text-xs font-medium text-[#8f9aaf]">({t.optional})</span>
-                          </p>
-                          <p className="mt-1 text-xs leading-5 text-[#8f9aaf]">{t.uploadHint}</p>
-                        </div>
-                        <span className="shrink-0 rounded-md border border-[#d99a2b] bg-[#211a12] px-3 py-1 text-xs font-bold text-[#f0b84f]">
-                          {t.referenceExtraCost}
-                        </span>
-                        {characterReferenceImage && (
-                          <button
-                            type="button"
-                            onClick={() => setCharacterReferenceImage("")}
-                            className="rounded-md border border-[#2a3142] px-3 py-1 text-xs font-semibold text-[#d9deea] transition hover:border-[#d99a2b]"
-                          >
-                            {t.removeImage}
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="mt-3 flex items-center gap-3">
-                        <label className="inline-flex h-10 cursor-pointer items-center rounded-lg bg-[#9f2f2b] px-4 text-sm font-bold text-[#fafafa] transition hover:bg-[#b83a35]">
-                          {t.uploadButton}
-                          <input
-                            type="file"
-                            accept="image/png,image/jpeg,image/webp"
-                            onChange={handleReferenceUpload}
-                            className="hidden"
-                          />
-                        </label>
-                        {characterReferenceImage && (
-                          <Image
-                            src={characterReferenceImage}
-                            alt="Character reference preview"
-                            width={64}
-                            height={64}
-                            unoptimized
-                            className="h-16 w-16 rounded-md border border-[#2a3142] object-cover"
-                          />
-                        )}
-                      </div>
+                  <div className="rounded-lg border border-[#2a3142] bg-[#151b2b] p-6">
+                    <div>
+                      <p className="text-sm font-semibold text-[#d9deea]">
+                        {t.styleTemplate}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-[#8f9aaf]">{t.styleHint}</p>
                     </div>
 
-                    <div className="rounded-lg border border-[#2a3142] bg-[#151b2b] p-6">
-                      <div>
-                        <p className="text-sm font-semibold text-[#d9deea]">
-                          {t.styleTemplate}
-                        </p>
-                        <p className="mt-1 text-xs leading-5 text-[#8f9aaf]">{t.styleHint}</p>
-                      </div>
-
-                      <div className="mt-3 grid grid-cols-2 gap-3">
+                    <div className="mt-3 grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        aria-label={t.noTemplate}
+                        onClick={() => setStyleTemplate("none")}
+                        className={`flex min-h-44 flex-col rounded-lg border p-4 text-left transition ${
+                          styleTemplate === "none"
+                            ? "border-[#d99a2b] bg-[#211a12] shadow-[0_0_0_1px_rgba(217,154,43,0.22)]"
+                            : "border-[#2a3142] bg-[#080b13] hover:border-[#2a3142]"
+                        }`}
+                      >
+                        <div className="flex flex-1 flex-col justify-between gap-3">
+                          <div>
+                            <span className="text-sm font-semibold text-[#fafafa]">
+                              {t.noTemplate}
+                            </span>
+                          </div>
+                          <div className="flex justify-center">
+                            <Image
+                              src="/landing/default-template-showcase.png"
+                              alt={t.noTemplate}
+                              width={128}
+                              height={128}
+                              unoptimized
+                              className="h-32 w-24 max-w-full object-contain"
+                              style={{ imageRendering: "pixelated" }}
+                            />
+                          </div>
+                        </div>
+                      </button>
+                      {styleTemplateOptions.map((option) => (
                         <button
+                          key={option.id}
                           type="button"
-                          aria-label={t.noTemplate}
-                          onClick={() => setStyleTemplate("none")}
+                          aria-label={option[language]}
+                          onClick={() => setStyleTemplate(option.id)}
                           className={`flex min-h-44 flex-col rounded-lg border p-4 text-left transition ${
-                            styleTemplate === "none"
+                            styleTemplate === option.id
                               ? "border-[#d99a2b] bg-[#211a12] shadow-[0_0_0_1px_rgba(217,154,43,0.22)]"
                               : "border-[#2a3142] bg-[#080b13] hover:border-[#2a3142]"
                           }`}
                         >
                           <div className="flex flex-1 flex-col justify-between gap-3">
-                            <div>
-                              <span className="text-sm font-semibold text-[#fafafa]">
-                                {t.noTemplate}
-                              </span>
-                            </div>
-                            <div className="flex justify-center">
+                            <div className="rounded-md bg-[#fafafa] p-2">
                               <Image
-                                src="/landing/default-template-showcase.png"
-                                alt={t.noTemplate}
+                                src={option.image}
+                                alt={option[language]}
                                 width={128}
                                 height={128}
                                 unoptimized
-                                className="h-32 w-24 max-w-full object-contain"
+                                className="mx-auto h-24 w-24 max-w-full rounded object-contain"
                                 style={{ imageRendering: "pixelated" }}
                               />
                             </div>
+                            <div className="flex justify-center">
+                              <span className="inline-flex rounded-md border border-[#d99a2b] bg-[#211a12] px-3 py-1 text-xs font-bold text-[#f0b84f] shadow-[0_0_12px_rgba(217,154,43,0.16)]">
+                                {t.templateExtraCost}
+                              </span>
+                            </div>
                           </div>
                         </button>
-                        {styleTemplateOptions.map((option) => (
-                          <button
-                            key={option.id}
-                            type="button"
-                            aria-label={option[language]}
-                            onClick={() => setStyleTemplate(option.id)}
-                            className={`flex min-h-44 flex-col rounded-lg border p-4 text-left transition ${
-                              styleTemplate === option.id
-                                ? "border-[#d99a2b] bg-[#211a12] shadow-[0_0_0_1px_rgba(217,154,43,0.22)]"
-                                : "border-[#2a3142] bg-[#080b13] hover:border-[#2a3142]"
-                            }`}
-                          >
-                            <div className="flex flex-1 flex-col justify-between gap-3">
-                              <div className="rounded-md bg-[#fafafa] p-2">
-                                <Image
-                                  src={option.image}
-                                  alt={option[language]}
-                                  width={128}
-                                  height={128}
-                                  unoptimized
-                                  className="mx-auto h-24 w-24 max-w-full rounded object-contain"
-                                  style={{ imageRendering: "pixelated" }}
-                                />
-                              </div>
-                              <div className="flex justify-center">
-                                <span className="inline-flex rounded-md border border-[#d99a2b] bg-[#211a12] px-3 py-1 text-xs font-bold text-[#f0b84f] shadow-[0_0_12px_rgba(217,154,43,0.16)]">
-                                  {t.templateExtraCost}
-                                </span>
-                              </div>
-                            </div>
-                          </button>
-                        ))}
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+                  <div className="rounded-lg border border-[#2a3142] bg-[#151b2b] p-6">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-[#d9deea]">
+                          {t.upload} <span className="text-xs font-medium text-[#8f9aaf]">({t.optional})</span>
+                        </p>
+                        <p className="mt-1 text-xs leading-5 text-[#8f9aaf]">{t.uploadHint}</p>
                       </div>
+                      <span className="shrink-0 rounded-md border border-[#d99a2b] bg-[#211a12] px-3 py-1 text-xs font-bold text-[#f0b84f]">
+                        {t.referenceExtraCost}
+                      </span>
+                      {characterReferenceImage && (
+                        <button
+                          type="button"
+                          onClick={() => setCharacterReferenceImage("")}
+                          className="rounded-md border border-[#2a3142] px-3 py-1 text-xs font-semibold text-[#d9deea] transition hover:border-[#d99a2b]"
+                        >
+                          {t.removeImage}
+                        </button>
+                      )}
                     </div>
 
-                    <div className="rounded-lg border border-[#2a3142] bg-[#151b2b] p-6">
-                      <p className="text-sm font-semibold text-[#d9deea]">
-                        {t.generationSettings}
-                      </p>
+                    <div className="mt-3 flex items-center gap-3">
+                      <label className="inline-flex h-10 cursor-pointer items-center rounded-lg bg-[#9f2f2b] px-4 text-sm font-bold text-[#fafafa] transition hover:bg-[#b83a35]">
+                        {t.uploadButton}
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          onChange={handleReferenceUpload}
+                          className="hidden"
+                        />
+                      </label>
+                      {characterReferenceImage && (
+                        <Image
+                          src={characterReferenceImage}
+                          alt="Character reference preview"
+                          width={64}
+                          height={64}
+                          unoptimized
+                          className="h-16 w-16 rounded-md border border-[#2a3142] object-cover"
+                        />
+                      )}
+                    </div>
+                  </div>
 
-                      <div className="mt-3 flex flex-col gap-4">
-                        <div>
-                          <p className="mb-2 text-xs font-semibold text-[#8f9aaf]">{t.direction}</p>
-                          <div className="grid grid-cols-4 gap-2">
-                            {directionOptions.map((option) => (
-                              <button
-                                key={option.id}
-                                type="button"
-                                onClick={() => setDirection(option.id)}
-                                className={`rounded-md border px-2 py-2 text-xs font-bold transition ${
-                                  direction === option.id
-                                    ? "border-[#d99a2b] bg-[#211a12] text-[#f0b84f]"
-                                    : "border-[#2a3142] bg-[#080b13] text-[#d9deea] hover:border-[#2a3142]"
-                                }`}
-                              >
-                                {option[language]}
-                              </button>
-                            ))}
-                          </div>
+                  <div className="rounded-lg border border-[#2a3142] bg-[#151b2b] p-6">
+                    <p className="text-sm font-semibold text-[#d9deea]">
+                      {t.generationSettings}
+                    </p>
+
+                    <div className="mt-3 flex flex-col gap-4">
+                      <div>
+                        <p className="mb-2 text-xs font-semibold text-[#8f9aaf]">{t.direction}</p>
+                        <div className="grid grid-cols-4 gap-2">
+                          {directionOptions.map((option) => (
+                            <button
+                              key={option.id}
+                              type="button"
+                              onClick={() => setDirection(option.id)}
+                              className={`rounded-md border px-2 py-2 text-xs font-bold transition ${
+                                direction === option.id
+                                  ? "border-[#d99a2b] bg-[#211a12] text-[#f0b84f]"
+                                  : "border-[#2a3142] bg-[#080b13] text-[#d9deea] hover:border-[#2a3142]"
+                              }`}
+                            >
+                              {option[language]}
+                            </button>
+                          ))}
                         </div>
+                      </div>
 
-                        <div>
-                          <p className="mb-2 text-xs font-semibold text-[#8f9aaf]">{t.outputSize}</p>
-                          <div className="flex gap-2">
-                            {outputSizeOptions.map((size) => (
-                              <button
-                                key={size}
-                                type="button"
-                                onClick={() => setOutputSize(size)}
-                                className={`rounded-md border px-3 py-2 text-xs font-bold transition ${
-                                  outputSize === size
-                                    ? "border-[#d99a2b] bg-[#211a12] text-[#f0b84f]"
-                                    : "border-[#2a3142] bg-[#080b13] text-[#d9deea] hover:border-[#2a3142]"
-                                }`}
-                              >
-                                {size}
-                              </button>
-                            ))}
-                          </div>
+                      <div>
+                        <p className="mb-2 text-xs font-semibold text-[#8f9aaf]">{t.outputSize}</p>
+                        <div className="flex gap-2">
+                          {outputSizeOptions.map((size) => (
+                            <button
+                              key={size}
+                              type="button"
+                              onClick={() => setOutputSize(size)}
+                              className={`rounded-md border px-3 py-2 text-xs font-bold transition ${
+                                outputSize === size
+                                  ? "border-[#d99a2b] bg-[#211a12] text-[#f0b84f]"
+                                  : "border-[#2a3142] bg-[#080b13] text-[#d9deea] hover:border-[#2a3142]"
+                              }`}
+                            >
+                              {size}
+                            </button>
+                          ))}
                         </div>
+                      </div>
 
-                        <div className="grid grid-cols-[1fr_88px] gap-3">
-                          <div>
-                            <label className="text-xs font-semibold text-[#8f9aaf]">
-                              {t.styleStrength}: {styleStrength.toFixed(1)}
-                              <input
-                                type="range"
-                                min="0.1"
-                                max="1"
-                                step="0.1"
-                                value={styleStrength}
-                                onChange={(event) => setStyleStrength(Number(event.target.value))}
-                                className="mt-2 w-full accent-[#d99a2b]"
-                              />
-                            </label>
-                          </div>
+                      <div className="grid grid-cols-[1fr_88px] gap-3">
+                        <div>
                           <label className="text-xs font-semibold text-[#8f9aaf]">
-                            {t.seed}
+                            {t.styleStrength}: {styleStrength.toFixed(1)}
                             <input
-                              value={seed}
-                              onChange={(event) => setSeed(event.target.value.replace(/\D/g, "").slice(0, 10))}
-                              placeholder={t.randomSeed}
-                              className="mt-2 h-9 w-full rounded-md border border-[#2a3142] bg-[#080b13] px-2 text-xs text-[#d9deea] outline-none placeholder:text-[#647084] focus:border-[#2dd4bf]"
+                              type="range"
+                              min="0.1"
+                              max="1"
+                              step="0.1"
+                              value={styleStrength}
+                              onChange={(event) => setStyleStrength(Number(event.target.value))}
+                              className="mt-2 w-full accent-[#d99a2b]"
                             />
                           </label>
                         </div>
+                        <label className="text-xs font-semibold text-[#8f9aaf]">
+                          {t.seed}
+                          <input
+                            value={seed}
+                            onChange={(event) => setSeed(event.target.value.replace(/\D/g, "").slice(0, 10))}
+                            placeholder={t.randomSeed}
+                            className="mt-2 h-9 w-full rounded-md border border-[#2a3142] bg-[#080b13] px-2 text-xs text-[#d9deea] outline-none placeholder:text-[#647084] focus:border-[#2dd4bf]"
+                          />
+                        </label>
                       </div>
                     </div>
                   </div>
