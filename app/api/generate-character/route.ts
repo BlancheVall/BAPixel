@@ -23,7 +23,9 @@ const REFERENCE_IMAGE_EXTRA_COST = 1;
 const PROMPT_HELPER_MODEL = process.env.PROMPT_HELPER_MODEL || "gpt-4.1-mini";
 const OPENAI_IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || "gpt-image-1";
 const OPENAI_IMAGE_QUALITY = process.env.OPENAI_IMAGE_QUALITY || "medium";
-const activeGenerationUsers = new Set<string>();
+const ACTIVE_MEMORY_LOCK_MS = 15 * 60 * 1000;
+const ACTIVE_DB_JOB_TTL_MS = 45 * 60 * 1000;
+const activeGenerationUsers = new Map<string, number>();
 const TEMPLATE_STYLE_REFERENCE_FILES = [
   "001.png",
   "003.png",
@@ -502,12 +504,34 @@ export async function POST(req: NextRequest) {
       return errorResponse("GEN-POINTS-402", "Not enough Points to generate an image.", 402);
     }
 
-    if (activeGenerationUsers.has(sessionUser.id)) {
+    const memoryLockStartedAt = activeGenerationUsers.get(sessionUser.id);
+
+    if (memoryLockStartedAt && Date.now() - memoryLockStartedAt < ACTIVE_MEMORY_LOCK_MS) {
       return NextResponse.json(
          { code: "GEN-LOCK-409", error: "A generation is already running for this account. Please wait for it to finish." },
         { status: 409 },
       );
     }
+
+    if (memoryLockStartedAt) {
+      activeGenerationUsers.delete(sessionUser.id);
+    }
+
+    await prisma.generationJob.updateMany({
+      where: {
+        userId: sessionUser.id,
+        status: {
+          in: ["PENDING", "RUNNING"],
+        },
+        createdAt: {
+          lt: new Date(Date.now() - ACTIVE_DB_JOB_TTL_MS),
+        },
+      },
+      data: {
+        status: "FAILED",
+        error: "Generation job expired before completion.",
+      },
+    });
 
     const existingJob = await prisma.generationJob.findFirst({
       where: {
@@ -518,13 +542,23 @@ export async function POST(req: NextRequest) {
       },
       select: {
         id: true,
+        status: true,
+      },
+      orderBy: {
+        createdAt: "desc",
       },
     });
 
     if (existingJob) {
       return NextResponse.json(
-         { code: "GEN-LOCK-409", error: "A generation is already running for this account. Please wait for it to finish." },
-        { status: 409 },
+        {
+          job: {
+            id: existingJob.id,
+            status: existingJob.status,
+          },
+          code: "GEN-JOB-RESUME",
+        },
+        { status: 202 },
       );
     }
 
@@ -552,7 +586,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    activeGenerationUsers.add(sessionUser.id);
+    activeGenerationUsers.set(sessionUser.id, Date.now());
     lockedUserId = sessionUser.id;
 
     const characterFeaturePrompt = usesStyleTemplate

@@ -1002,7 +1002,7 @@ export default function Home() {
   async function pollGenerationJob(jobId: string) {
     const startedAt = Date.now();
 
-    while (Date.now() - startedAt < 180000) {
+    while (Date.now() - startedAt < 900000) {
       await new Promise((resolve) => window.setTimeout(resolve, 3000));
 
       const response = await fetch(`/api/generation-job?id=${encodeURIComponent(jobId)}`);
