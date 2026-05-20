@@ -1,10 +1,10 @@
-﻿"use client";
+"use client";
 
 import Image from "next/image";
-import { ChangeEvent, FormEvent, PointerEvent, useEffect, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, PointerEvent, useCallback, useEffect, useRef, useState } from "react";
 
 type Language = "zh" | "en";
-type Module = "character" | "animation" | "portfolio";
+type Module = "character" | "animation" | "editor" | "portfolio";
 type StyleTemplate = "none" | "japanese_rpg";
 type AuthMode = "login" | "register";
 type AssetType = "character" | "item" | "monster" | "scene";
@@ -21,7 +21,6 @@ type PortfolioGeneration = {
   imageUrl: string;
   title: string | null;
   category: AssetType | string;
-  favorite: boolean;
   description: string | null;
   createdAt: string;
 };
@@ -96,7 +95,7 @@ const billingPackageArt: Record<string, { src: string; alt: string }> = {
 
 const landingCharacters = [
   {
-    src: "/landing/hero-character-1.png",
+    src: "/landing/hero-mage-showcase.png",
     alt: "Pixel mage character",
   },
   {
@@ -149,22 +148,23 @@ function drawSpriteFrame(
 
 const copy = {
   zh: {
-    appName: "AI Pixel Sprite Tool",
+    appName: "AI 像素素材工具",
     title: "BAPixel",
     landingTitle: "BAPixel",
-    landingSubtitle: "Create RPG pixel sprites from prompts and references.",
-    landingTagline: "Create anything as you wish.",
-    landingEyebrow: "AI PIXEL SPRITE TOOL",
-    getStart: "Get Start",
+    landingSubtitle: "通过描述和参考图生成 RPG 像素角色与游戏素材。",
+    landingTagline: "创造你想要的一切。",
+    landingEyebrow: "AI 像素素材工具",
+    getStart: "开始创作",
     intro: "输入描述或上传参考图，选择方向和尺寸，生成像素 PNG。",
     language: "语言",
     character: "角色",
+    editor: "编辑器",
     animation: "动画",
     portfolio: "作品集",
     optional: "可选",
     styleTemplate: "画风模板",
     styleHint: "默认不使用模板。使用模板会额外消耗 2 Point。",
-    noTemplate: "不使用模板",
+    noTemplate: "默认模板",
     templateExtraCost: "+2 Point",
     referenceExtraCost: "+1 Point",
     label: "角色描述",
@@ -198,7 +198,7 @@ const copy = {
     animationTitle: "动画模块",
     animationIntro: "这里将用于后续角色动作、帧序列和 sprite sheet 生成。",
     portfolioTitle: "作品集",
-    portfolioIntro: "这里会保存你账号下 7 天内生成过的资产；可以收藏、命名、复制提示词并再次生成相似图。",
+    portfolioIntro: "这里会保存你账号下 7 天内生成过的资产；可以命名、下载、删除，或导入编辑器继续调整。",
     emptyPortfolio: "还没有生成历史。",
     portfolioLoginHint: "请先登录查看作品集。",
     loadPortfolioFailed: "加载作品集失败，请稍后再试。",
@@ -232,7 +232,6 @@ const copy = {
     copyPrompt: "复制 Prompt",
     regenerateSimilar: "再次生成相似",
     rename: "命名",
-    favorite: "收藏",
     spritePreview: "动作预览",
     idle: "Idle",
     walk: "Walk",
@@ -240,12 +239,17 @@ const copy = {
     exportGif: "导出 GIF",
     editPixels: "在编辑器中编辑",
     pixelEditorTitle: "像素编辑",
+    openBlankEditor: "打开空白编辑器",
+    importImage: "导入图片",
+    editThisImage: "编辑",
+    editorTitle: "像素编辑器",
+    editorIntro: "从空白画布开始，导入本地图片，或从作品集中选择图片继续编辑。",
+    editorEmptyPortfolio: "登录后可以从作品集中选择图片导入编辑器。",
     zoom: "缩放",
     brush: "画笔",
     eraser: "橡皮",
     undo: "撤销",
     saveEdit: "保存到预览",
-    commercialNote: "商用前请确认当前模型和 LoRA 许可证；你的作品会按服务条款保存和导出。",
     copied: "已复制",
     copyImageUnsupported: "当前浏览器不支持复制图片，已复制图片链接。",
     rechargeTitle: "充值 Point",
@@ -270,6 +274,7 @@ const copy = {
     intro: "Enter a prompt or upload a reference, choose direction and size, then generate a pixel PNG.",
     language: "Language",
     character: "Character",
+    editor: "Editor",
     animation: "Animation",
     portfolio: "Portfolio",
     optional: "Optional",
@@ -309,7 +314,7 @@ const copy = {
     animationTitle: "Animation Module",
     animationIntro: "This area will be used for character actions, frame sequences, and sprite sheets.",
     portfolioTitle: "Portfolio",
-    portfolioIntro: "Generated assets are saved here for 7 days. Favorite, name, copy prompts, and regenerate similar assets.",
+    portfolioIntro: "Generated assets are saved here for 7 days. Name, download, delete, or continue editing them.",
     emptyPortfolio: "No generation history yet.",
     portfolioLoginHint: "Please log in to view your portfolio.",
     loadPortfolioFailed: "Failed to load portfolio. Please try again later.",
@@ -343,7 +348,6 @@ const copy = {
     copyPrompt: "Copy Prompt",
     regenerateSimilar: "Regenerate Similar",
     rename: "Rename",
-    favorite: "Favorite",
     spritePreview: "Animation Preview",
     idle: "Idle",
     walk: "Walk",
@@ -351,12 +355,17 @@ const copy = {
     exportGif: "Export GIF",
     editPixels: "Edit in Pixel Editor",
     pixelEditorTitle: "Pixel Editor",
+    openBlankEditor: "Open Blank Editor",
+    importImage: "Import Image",
+    editThisImage: "Edit",
+    editorTitle: "Pixel Editor",
+    editorIntro: "Start from a blank canvas, import a local image, or continue editing from your portfolio.",
+    editorEmptyPortfolio: "Log in to choose images from your portfolio.",
     zoom: "Zoom",
     brush: "Brush",
     eraser: "Eraser",
     undo: "Undo",
     saveEdit: "Save Preview",
-    commercialNote: "Before commercial use, confirm the current model and LoRA license. Assets are stored and exported under the service terms.",
     copied: "Copied",
     copyImageUnsupported: "This browser cannot copy images, so the image link was copied.",
     rechargeTitle: "Recharge Points",
@@ -395,6 +404,7 @@ export default function Home() {
   const [pixelColor, setPixelColor] = useState("#fff2d4");
   const [pixelEditorZoom, setPixelEditorZoom] = useState(4);
   const [pixelUndoStack, setPixelUndoStack] = useState<string[]>([]);
+  const [pixelEditorSize, setPixelEditorSize] = useState({ width: 128, height: 128 });
   const [spriteAnimation, setSpriteAnimation] = useState<SpriteAnimation>("idle");
   const [portfolioItems, setPortfolioItems] = useState<PortfolioGeneration[]>([]);
   const [portfolioLoading, setPortfolioLoading] = useState(false);
@@ -415,10 +425,30 @@ export default function Home() {
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
   const generatedImageRef = useRef<HTMLImageElement | null>(null);
   const pixelCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const pixelImportInputRef = useRef<HTMLInputElement | null>(null);
   const spritePreviewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const t = copy[language];
   const canGenerate = Boolean(description.trim() || characterReferenceImage);
   const generationCost = 1 + (styleTemplate === "none" ? 0 : 2) + (characterReferenceImage ? 1 : 0);
+
+  const codedError = useCallback((message: string, code: string) => {
+    return language === "zh"
+      ? `${message} 请联系作者，并附上错误代码：${code}`
+      : `${message} Please contact the creator with error code: ${code}`;
+  }, [language]);
+
+  const apiErrorCode = useCallback((data: unknown, fallbackCode: string) => {
+    if (
+      data &&
+      typeof data === "object" &&
+      "code" in data &&
+      typeof (data as { code?: unknown }).code === "string"
+    ) {
+      return (data as { code: string }).code;
+    }
+
+    return fallbackCode;
+  }, []);
 
   async function refreshSession() {
     try {
@@ -480,7 +510,7 @@ export default function Home() {
         use_fedcm_for_prompt: false,
         callback: async (response) => {
           if (!response.credential) {
-            setAuthError(t.googleLoginFailed);
+            setAuthError(codedError(t.googleLoginFailed, "AUTH-GOOGLE-001"));
             return;
           }
 
@@ -495,14 +525,14 @@ export default function Home() {
             const data = await result.json();
 
             if (!result.ok || !data.user) {
-              setAuthError(data.error || t.googleLoginFailed);
+              setAuthError(codedError(t.googleLoginFailed, apiErrorCode(data, "AUTH-GOOGLE-002")));
               return;
             }
 
             saveSession(data.user as AuthUser);
             setAuthOpen(false);
           } catch {
-            setAuthError(t.googleLoginFailed);
+            setAuthError(codedError(t.googleLoginFailed, "AUTH-GOOGLE-003"));
           }
         },
       });
@@ -541,10 +571,10 @@ export default function Home() {
     document.head.appendChild(script);
 
     return () => script.removeEventListener("load", initializeGoogleLogin);
-  }, [authOpen, t.googleLoginFailed]);
+  }, [apiErrorCode, authOpen, codedError, t.googleLoginFailed]);
 
   useEffect(() => {
-    if (activeModule !== "portfolio") {
+    if (activeModule !== "portfolio" && activeModule !== "editor") {
       return;
     }
 
@@ -563,14 +593,14 @@ export default function Home() {
         const data = await response.json();
 
         if (!response.ok) {
-          setPortfolioError(data.error || t.loadPortfolioFailed);
+          setPortfolioError(codedError(t.loadPortfolioFailed, apiErrorCode(data, "PORT-LOAD-001")));
           setPortfolioItems([]);
           return;
         }
 
         setPortfolioItems(data.generations ?? []);
       } catch {
-        setPortfolioError(t.loadPortfolioFailed);
+        setPortfolioError(codedError(t.loadPortfolioFailed, "PORT-LOAD-002"));
         setPortfolioItems([]);
       } finally {
         setPortfolioLoading(false);
@@ -578,7 +608,7 @@ export default function Home() {
     }
 
     loadPortfolio();
-  }, [activeModule, authUser, t.loadPortfolioFailed, t.portfolioLoginHint]);
+  }, [activeModule, apiErrorCode, authUser, codedError, t.loadPortfolioFailed, t.portfolioLoginHint]);
 
   useEffect(() => {
     if (!billingOpen || billingPackages.length > 0) {
@@ -594,20 +624,20 @@ export default function Home() {
         const data = await response.json();
 
         if (!response.ok) {
-          setBillingError(data.error || t.packageLoadFailed);
+          setBillingError(codedError(t.packageLoadFailed, apiErrorCode(data, "BILL-PACK-001")));
           return;
         }
 
         setBillingPackages(data.packages ?? []);
       } catch {
-        setBillingError(t.packageLoadFailed);
+        setBillingError(codedError(t.packageLoadFailed, "BILL-PACK-002"));
       } finally {
         setBillingLoading(false);
       }
     }
 
     loadPackages();
-  }, [billingOpen, billingPackages.length, t.packageLoadFailed]);
+  }, [apiErrorCode, billingOpen, billingPackages.length, codedError, t.packageLoadFailed]);
 
   useEffect(() => {
     if (!imageUrl) {
@@ -720,13 +750,13 @@ export default function Home() {
       const data = await response.json();
 
       if (!response.ok || !data.url) {
-        setBillingError(data.error || t.checkoutFailed);
+        setBillingError(codedError(t.checkoutFailed, apiErrorCode(data, "BILL-CHECKOUT-001")));
         return;
       }
 
       window.location.href = data.url;
     } catch {
-      setBillingError(t.checkoutFailed);
+      setBillingError(codedError(t.checkoutFailed, "BILL-CHECKOUT-002"));
     } finally {
       setBillingLoading(false);
     }
@@ -734,12 +764,12 @@ export default function Home() {
 
   function handleGoogleLogin() {
     if (!GOOGLE_CLIENT_ID) {
-      setAuthError(t.googleConfigMissing);
+      setAuthError(codedError(t.googleConfigMissing, "AUTH-GOOGLE-004"));
       return;
     }
 
     if (!window.google?.accounts?.id) {
-      setAuthError(t.googleLoginFailed);
+      setAuthError(codedError(t.googleLoginFailed, "AUTH-GOOGLE-005"));
       return;
     }
 
@@ -779,14 +809,14 @@ export default function Home() {
         const data = await response.json();
 
         if (!response.ok || !data.user) {
-          setAuthError(data.error || t.userExists);
+          setAuthError(codedError(t.userExists, apiErrorCode(data, "AUTH-REGISTER-001")));
           return;
         }
 
         saveSession(data.user as AuthUser);
         setAuthOpen(false);
       } catch {
-        setAuthError(t.requestError);
+        setAuthError(codedError(t.requestError, "AUTH-REGISTER-002"));
       }
       return;
     }
@@ -810,14 +840,14 @@ export default function Home() {
       const data = await response.json();
 
       if (!response.ok || !data.user) {
-        setAuthError(data.error || t.invalidLogin);
+        setAuthError(codedError(t.invalidLogin, apiErrorCode(data, "AUTH-LOGIN-001")));
         return;
       }
 
       saveSession(data.user as AuthUser);
       setAuthOpen(false);
     } catch {
-      setAuthError(t.requestError);
+      setAuthError(codedError(t.requestError, "AUTH-LOGIN-002"));
     }
   }
 
@@ -897,21 +927,21 @@ export default function Home() {
 
       if (!response.ok) {
         if (response.status === 401) {
-          setError(t.loginExpiredError);
+          setError(codedError(t.loginExpiredError, apiErrorCode(data, "GEN-401")));
           setAuthUser(null);
           openAuth("login");
         } else if (response.status === 402) {
-          setError(t.insufficientPoints);
+          setError(codedError(t.insufficientPoints, apiErrorCode(data, "GEN-402")));
         } else if (response.status === 413) {
-          setError(t.uploadTooLarge);
+          setError(codedError(t.uploadTooLarge, apiErrorCode(data, "GEN-413")));
         } else if (response.status === 429) {
-          setError(t.rateLimitError);
+          setError(codedError(t.rateLimitError, apiErrorCode(data, "GEN-429")));
         } else if (response.status === 409) {
-          setError(data.error || (language === "zh" ? "已有生成任务正在进行，请稍等。" : "A generation is already running. Please wait."));
+          setError(codedError(language === "zh" ? "\u5df2\u6709\u751f\u6210\u4efb\u52a1\u6b63\u5728\u8fdb\u884c\uff0c\u8bf7\u7a0d\u7b49\u3002" : "A generation is already running. Please wait.", apiErrorCode(data, "GEN-409")));
         } else if (response.status >= 500) {
-          setError(data.error || t.serverConfigError);
+          setError(codedError(t.serverConfigError, apiErrorCode(data, "GEN-500")));
         } else {
-          setError(data.error || t.failedError);
+          setError(codedError(t.failedError, apiErrorCode(data, "GEN-400")));
         }
         return;
       }
@@ -925,7 +955,7 @@ export default function Home() {
         setPortfolioItems((items) => [data.generation as PortfolioGeneration, ...items]);
       }
     } catch {
-      setError(t.requestError);
+      setError(codedError(t.requestError, "GEN-NETWORK"));
     } finally {
       setLoading(false);
     }
@@ -976,13 +1006,13 @@ export default function Home() {
 
       if (!response.ok) {
         if (response.status === 401) {
-          setError(t.loginExpiredError);
+          setError(codedError(t.loginExpiredError, apiErrorCode(data, "JOB-401")));
           setAuthUser(null);
           openAuth("login");
         } else if (response.status === 402) {
-          setError(t.insufficientPoints);
+          setError(codedError(t.insufficientPoints, apiErrorCode(data, "JOB-402")));
         } else {
-          setError(data.error || t.failedError);
+          setError(codedError(t.failedError, apiErrorCode(data, "JOB-500")));
         }
         return;
       }
@@ -998,7 +1028,7 @@ export default function Home() {
       return;
     }
 
-    setError(language === "zh" ? "生成仍在进行，请稍后到作品集查看。" : "Generation is still running. Please check the portfolio later.");
+    setError(codedError(language === "zh" ? "\u751f\u6210\u4ecd\u5728\u8fdb\u884c\uff0c\u8bf7\u7a0d\u540e\u5230\u4f5c\u54c1\u96c6\u67e5\u770b\u3002" : "Generation is still running. Please check the portfolio later.", "JOB-TIMEOUT"));
   }
 
   async function getDisplayedImageBlob() {
@@ -1113,7 +1143,7 @@ export default function Home() {
       link.remove();
       URL.revokeObjectURL(url);
     } catch {
-      setError(t.failedError);
+      setError(codedError(t.failedError, "EXPORT-SPRITE-001"));
     }
   }
 
@@ -1169,39 +1199,103 @@ export default function Home() {
       link.remove();
       URL.revokeObjectURL(url);
     } catch {
-      setError(t.failedError);
+      setError(codedError(t.failedError, "EXPORT-GIF-001"));
     }
+  }
+
+  async function preparePixelEditor(
+    draw: (canvas: HTMLCanvasElement, context: CanvasRenderingContext2D) => Promise<void> | void,
+  ) {
+    setActiveModule("editor");
+    setPixelEditorOpen(true);
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+
+    const canvas = pixelCanvasRef.current;
+    const context = canvas?.getContext("2d");
+
+    if (!canvas || !context) {
+      return;
+    }
+
+    context.imageSmoothingEnabled = false;
+    await draw(canvas, context);
+    setPixelEditorSize({ width: canvas.width, height: canvas.height });
+    setPixelUndoStack([]);
+  }
+
+  async function drawBlobInPixelEditor(blob: Blob) {
+    const bitmap = await createImageBitmap(blob);
+
+    try {
+      await preparePixelEditor((canvas, context) => {
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(bitmap, 0, 0);
+      });
+    } finally {
+      bitmap.close();
+    }
+  }
+
+  async function openBlankPixelEditor() {
+    await preparePixelEditor((canvas, context) => {
+      canvas.width = outputSize;
+      canvas.height = outputSize;
+      context.clearRect(0, 0, canvas.width, canvas.height);
+    });
   }
 
   async function openPixelEditor() {
     if (!imageUrl) {
+      await openBlankPixelEditor();
       return;
     }
 
-    setPixelEditorOpen(true);
-
     try {
       const blob = await getDisplayedImageBlob();
-      const bitmap = await createImageBitmap(blob);
-      await new Promise((resolve) => window.setTimeout(resolve, 0));
-      const canvas = pixelCanvasRef.current;
-      const context = canvas?.getContext("2d");
+      await drawBlobInPixelEditor(blob);
+    } catch {
+      setError(codedError(t.failedError, "EDITOR-OPEN-001"));
+    }
+  }
 
-      if (!canvas || !context) {
-        bitmap.close();
-        return;
+  async function importImageToPixelEditor(file: File) {
+    try {
+      await drawBlobInPixelEditor(file);
+    } catch {
+      setError(codedError(t.failedError, "EDITOR-IMPORT-001"));
+    }
+  }
+
+  async function handlePixelEditorImport(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      setError(codedError(t.failedError, "EDITOR-IMPORT-002"));
+      return;
+    }
+
+    await importImageToPixelEditor(file);
+  }
+
+  async function openPortfolioImageInEditor(item: PortfolioGeneration) {
+    try {
+      setPortfolioError("");
+      const response = await fetch(`/api/generation-image?id=${encodeURIComponent(item.id)}`);
+
+      if (!response.ok) {
+        throw new Error("Failed to load portfolio image.");
       }
 
-      canvas.width = bitmap.width;
-      canvas.height = bitmap.height;
-      context.imageSmoothingEnabled = false;
-      context.clearRect(0, 0, canvas.width, canvas.height);
-      context.drawImage(bitmap, 0, 0);
-      bitmap.close();
-      setPixelUndoStack([]);
-      setPixelEditorOpen(true);
+      await drawBlobInPixelEditor(await response.blob());
     } catch {
-      setError(t.failedError);
+      setPortfolioError(codedError(t.loadPortfolioFailed, "EDITOR-PORT-001"));
     }
   }
 
@@ -1263,12 +1357,11 @@ export default function Home() {
 
     setImageUrl(canvas.toDataURL("image/png"));
     setGenerationImageApiUrl("");
-    setPixelEditorOpen(false);
   }
 
   async function updatePortfolioItem(
     generationId: string,
-    changes: Partial<Pick<PortfolioGeneration, "title" | "category" | "favorite">>,
+    changes: Partial<Pick<PortfolioGeneration, "title" | "category">>,
   ) {
     const previousItems = portfolioItems;
     setPortfolioItems((items) =>
@@ -1294,19 +1387,8 @@ export default function Home() {
       );
     } catch {
       setPortfolioItems(previousItems);
-      setPortfolioError(t.loadPortfolioFailed);
+      setPortfolioError(codedError(t.loadPortfolioFailed, "PORT-UPDATE-001"));
     }
-  }
-
-  async function copyPortfolioPrompt(item: PortfolioGeneration) {
-    await navigator.clipboard.writeText(item.description || item.title || "");
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1400);
-  }
-
-  function regeneratePortfolioItem(item: PortfolioGeneration) {
-    setDescription(item.description || item.title || "");
-    setActiveModule("character");
   }
 
   async function removeBrokenPortfolioImage(generationId: string) {
@@ -1348,33 +1430,33 @@ export default function Home() {
       }
     } catch {
       setPortfolioItems(previousItems);
-      setPortfolioError(t.deletePortfolioFailed);
+      setPortfolioError(codedError(t.deletePortfolioFailed, "PORT-DELETE-001"));
     }
   }
 
   if (showLanding) {
     return (
-      <main className="relative min-h-screen overflow-hidden bg-black text-[#fff2d4]">
-        <nav className="relative z-20 border-b border-[#6f5732] bg-[#171b2b] text-[#eadfca] shadow-[0_8px_28px_rgba(0,0,0,0.35)]">
-          <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-5 py-4 sm:px-8 lg:px-10 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:gap-5">
+      <main className="relative min-h-screen overflow-hidden bg-[#030712] text-[#fafafa]">
+        <nav className="relative z-20 border-b border-[#2a3142] bg-[#111827] text-[#d9deea] shadow-[0_8px_28px_rgba(0,0,0,0.35)]">
+          <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-6 py-4 sm:px-8 lg:px-10 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:gap-4">
               <div className="flex flex-col gap-1">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#c69a4a]">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#f0b84f]">
                   {t.appName}
                 </p>
-                <h1 className="text-2xl font-bold tracking-normal text-[#fff2d4]">
+                <h1 className="text-2xl font-bold tracking-normal text-[#fafafa]">
                   {t.title}
                 </h1>
               </div>
 
-              <div className="flex rounded-lg border border-[#6f5732] bg-[#0e1220] p-1">
+              <div className="flex rounded-lg border border-[#2a3142] bg-[#080b13] p-1">
                 <button
                   type="button"
                   onClick={() => {
                     setActiveModule("character");
                     setShowLanding(false);
                   }}
-                  className="h-9 rounded-md bg-[#b88a3d] px-4 text-sm font-semibold text-[#10131f] transition"
+                  className="h-9 rounded-md bg-[#d99a2b] px-4 text-sm font-semibold text-[#18181b] transition"
                 >
                   {t.character}
                 </button>
@@ -1384,9 +1466,20 @@ export default function Home() {
                     setActiveModule("portfolio");
                     setShowLanding(false);
                   }}
-                  className="h-9 rounded-md px-4 text-sm font-semibold text-[#eadfca] transition hover:bg-[#242b43]"
+                  className="h-9 rounded-md px-4 text-sm font-semibold text-[#d9deea] transition hover:bg-[#20283a]"
                 >
                   {t.portfolio}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveModule("editor");
+                    setShowLanding(false);
+                    void openBlankPixelEditor();
+                  }}
+                  className="h-9 rounded-md px-4 text-sm font-semibold text-[#d9deea] transition hover:bg-[#20283a]"
+                >
+                  {t.editor}
                 </button>
               </div>
             </div>
@@ -1394,30 +1487,30 @@ export default function Home() {
             <div className="flex flex-wrap items-center justify-end gap-3">
               {authUser ? (
                 <div className="flex items-center gap-2">
-                  <div className="flex h-10 items-center gap-2 rounded-full border border-[#8d6f37] bg-[#1d1924] px-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-                    <span className="rounded-full border border-[#b88a3d] bg-[#3a2a1a] px-2 py-0.5 text-[10px] font-bold uppercase text-[#f0c36e]">
+                  <div className="flex h-10 items-center gap-2 rounded-full border border-[#2a3142] bg-[#111827] px-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                    <span className="rounded-full border border-[#d99a2b] bg-[#211a12] px-2 py-1 text-[10px] font-bold uppercase text-[#f0b84f]">
                       {t.points}
                     </span>
-                    <span className="text-sm font-bold text-[#f0c36e]">
+                    <span className="text-sm font-bold text-[#f0b84f]">
                       {authUser.points}
                     </span>
-                    <span className="h-4 w-px bg-[#6f5732]" />
+                    <span className="h-4 w-px bg-[#27272a]" />
                     <button
                       type="button"
                       onClick={openBilling}
-                      className="rounded-full px-1.5 py-0.5 text-xs font-bold text-[#fff2d4] transition hover:bg-[#3a1f2b] hover:text-[#f0c36e]"
+                      className="rounded-full px-2 py-1 text-xs font-bold text-[#fafafa] transition hover:bg-[#3a1f2b] hover:text-[#f0b84f]"
                     >
                       {t.recharge}
                     </button>
                   </div>
-                  <div className="flex h-12 items-center gap-3 rounded-lg border border-[#6f5732] bg-[#0e1220] px-3">
-                    <p className="max-w-32 truncate text-sm font-semibold text-[#fff2d4]">
+                  <div className="flex h-12 items-center gap-3 rounded-lg border border-[#2a3142] bg-[#080b13] px-3">
+                    <p className="max-w-32 truncate text-sm font-semibold text-[#fafafa]">
                       {authUser.username}
                     </p>
                     <button
                       type="button"
                       onClick={logout}
-                      className="rounded-md border border-[#6f5732] px-2 py-1 text-xs font-semibold text-[#eadfca] transition hover:border-[#b88a3d]"
+                      className="rounded-md border border-[#2a3142] px-2 py-1 text-xs font-semibold text-[#d9deea] transition hover:border-[#d99a2b]"
                     >
                       {t.logout}
                     </button>
@@ -1428,28 +1521,28 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={() => openAuth("login")}
-                    className="h-10 rounded-lg border border-[#6f5732] bg-[#0e1220] px-4 text-sm font-semibold text-[#fff2d4] transition hover:border-[#4aa394]"
+                    className="h-10 rounded-lg border border-[#2a3142] bg-[#080b13] px-4 text-sm font-semibold text-[#fafafa] transition hover:border-[#2dd4bf]"
                   >
                     {t.login}
                   </button>
                   <button
                     type="button"
                     onClick={() => openAuth("register")}
-                    className="h-10 rounded-lg bg-[#8f3a35] px-4 text-sm font-bold text-[#fff2d4] transition hover:bg-[#a8443d]"
+                    className="h-10 rounded-lg bg-[#9f2f2b] px-4 text-sm font-bold text-[#fafafa] transition hover:bg-[#b83a35]"
                   >
                     {t.register}
                   </button>
                 </div>
               )}
 
-              <label className="flex h-10 items-center gap-2 rounded-lg border border-[#6f5732] bg-[#0e1220] px-3 text-sm text-[#d8cbb5] xl:absolute xl:right-8 xl:top-4">
+              <label className="flex h-10 items-center gap-2 rounded-lg border border-[#2a3142] bg-[#080b13] px-3 text-sm text-[#d4d4d8] xl:absolute xl:right-8 xl:top-4">
                 <span>{t.language}</span>
                 <select
                   value={language}
                   onChange={(event) => setLanguage(event.target.value as Language)}
-                  className="h-8 rounded-md border border-[#6f5732] bg-[#171b2b] px-2 text-sm font-semibold text-[#fff2d4] outline-none transition focus:border-[#4aa394]"
+                  className="h-8 rounded-md border border-[#2a3142] bg-[#111827] px-2 text-sm font-semibold text-[#fafafa] outline-none transition focus:border-[#2dd4bf]"
                 >
-                  <option value="zh">中文</option>
+                  <option value="zh">{"\u4e2d\u6587"}</option>
                   <option value="en">English</option>
                 </select>
               </label>
@@ -1470,15 +1563,15 @@ export default function Home() {
         <div className="landing-mask-fade absolute inset-0 bg-[radial-gradient(circle_at_62%_36%,rgba(255,221,141,0.14),transparent_34%),linear-gradient(180deg,rgba(0,0,0,0.24)_0%,rgba(0,0,0,0.06)_42%,rgba(0,0,0,0.78)_100%)]" />
 
         <section className="relative z-10 grid min-h-[calc(100vh-81px)] grid-cols-1 lg:grid-cols-[280px_1fr]">
-          <aside className="border-b border-white/10 bg-black/72 px-5 py-7 shadow-[20px_0_60px_rgba(0,0,0,0.42)] backdrop-blur-sm lg:border-b-0 lg:border-r lg:px-6">
-            <p className="text-xs font-bold tracking-[0.26em] text-[#f0c36e]">
+          <aside className="border-b border-white/10 bg-black/72 px-6 py-8 shadow-[20px_0_60px_rgba(0,0,0,0.42)] backdrop-blur-sm lg:border-b-0 lg:border-r lg:px-6">
+            <p className="text-xs font-bold tracking-[0.26em] text-[#f0b84f]">
               {t.landingEyebrow}
             </p>
-            <div className="mt-8 grid grid-cols-3 gap-4 lg:grid-cols-1 lg:gap-5">
+            <div className="mt-8 grid grid-cols-3 gap-4 lg:grid-cols-1 lg:gap-4">
               {landingCharacters.map((character, index) => (
                 <div
                   key={character.src}
-                  className="flex aspect-square items-center justify-center rounded-lg border border-[#6f5732]/70 bg-[#080a10]/88 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_20px_40px_rgba(0,0,0,0.35)] lg:h-[25vh] lg:min-h-36 lg:max-h-44 lg:aspect-auto"
+                  className="flex aspect-square items-center justify-center rounded-lg border border-[#2a3142]/70 bg-[#080a10]/88 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_20px_40px_rgba(0,0,0,0.35)] lg:h-[25vh] lg:min-h-36 lg:max-h-44 lg:aspect-auto"
                 >
                   <Image
                     src={character.src}
@@ -1497,19 +1590,19 @@ export default function Home() {
 
           <div className="relative flex min-h-[62vh] flex-col items-center justify-center px-6 py-10 text-center lg:min-h-[calc(100vh-81px)] lg:px-12">
             <div className="landing-copy-rise max-w-3xl">
-              <h1 className="text-5xl font-black tracking-normal text-[#fff2d4] drop-shadow-[0_6px_24px_rgba(0,0,0,0.75)] sm:text-7xl lg:text-8xl">
+              <h1 className="text-5xl font-black tracking-normal text-[#fafafa] drop-shadow-[0_6px_24px_rgba(0,0,0,0.75)] sm:text-7xl lg:text-8xl">
                 {t.landingTitle}
               </h1>
-              <p className="mx-auto mt-5 max-w-xl text-2xl font-black leading-8 text-[#f0c36e] drop-shadow-[0_4px_18px_rgba(0,0,0,0.8)] sm:text-3xl">
+              <p className="mx-auto mt-6 max-w-xl text-2xl font-black leading-8 text-[#f0b84f] drop-shadow-[0_4px_18px_rgba(0,0,0,0.8)] sm:text-3xl">
                 {t.landingTagline}
               </p>
-              <p className="mx-auto mt-5 max-w-xl text-base font-semibold leading-7 text-[#eadfca]/88 drop-shadow-[0_4px_18px_rgba(0,0,0,0.8)] sm:text-lg">
+              <p className="mx-auto mt-6 max-w-xl text-base font-semibold leading-7 text-[#d9deea]/88 drop-shadow-[0_4px_18px_rgba(0,0,0,0.8)] sm:text-lg">
                 {t.landingSubtitle}
               </p>
               <button
                 type="button"
                 onClick={() => setShowLanding(false)}
-                className="mt-9 h-14 rounded-lg border border-[#f0c36e]/70 bg-[#8f3a35] px-10 text-base font-black text-[#fff2d4] shadow-[0_18px_45px_rgba(0,0,0,0.52),inset_0_1px_0_rgba(255,255,255,0.18)] transition hover:border-[#fff2d4] hover:bg-[#a8443d] focus:outline-none focus:ring-2 focus:ring-[#f0c36e]"
+                className="mt-10 h-14 rounded-lg border border-[#d99a2b]/70 bg-[#9f2f2b] px-10 text-base font-black text-[#fafafa] shadow-[0_18px_45px_rgba(0,0,0,0.52),inset_0_1px_0_rgba(255,255,255,0.18)] transition hover:border-[#fafafa] hover:bg-[#b83a35] focus:outline-none focus:ring-2 focus:ring-[#d99a2b]"
               >
                 {t.getStart}
               </button>
@@ -1521,27 +1614,34 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-[#10131f] text-[#eadfca]">
-      <nav className="relative border-b border-[#6f5732] bg-[#171b2b] text-[#eadfca] shadow-[0_8px_28px_rgba(0,0,0,0.35)]">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-5 py-4 sm:px-8 lg:px-10 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:gap-5">
+    <main className="min-h-screen bg-[#070a12] text-[#d9deea]">
+      <input
+        ref={pixelImportInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        onChange={(event) => void handlePixelEditorImport(event)}
+        className="hidden"
+      />
+      <nav className="relative border-b border-[#2a3142] bg-[#111827] text-[#d9deea] shadow-[0_8px_28px_rgba(0,0,0,0.35)]">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-6 py-4 sm:px-8 lg:px-10 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:gap-4">
             <div className="flex flex-col gap-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#c69a4a]">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#f0b84f]">
                 {t.appName}
               </p>
-              <h1 className="text-2xl font-bold tracking-normal text-[#fff2d4]">
+              <h1 className="text-2xl font-bold tracking-normal text-[#fafafa]">
                 {t.title}
               </h1>
             </div>
 
-            <div className="flex rounded-lg border border-[#6f5732] bg-[#0e1220] p-1">
+            <div className="flex rounded-lg border border-[#2a3142] bg-[#080b13] p-1">
               <button
                 type="button"
                 onClick={() => setActiveModule("character")}
                 className={`h-9 rounded-md px-4 text-sm font-semibold transition ${
                   activeModule === "character"
-                    ? "bg-[#b88a3d] text-[#10131f]"
-                    : "text-[#eadfca] hover:bg-[#242b43]"
+                    ? "bg-[#d99a2b] text-[#18181b]"
+                    : "text-[#d9deea] hover:bg-[#20283a]"
                 }`}
               >
                 {t.character}
@@ -1551,11 +1651,25 @@ export default function Home() {
                 onClick={() => setActiveModule("portfolio")}
                 className={`h-9 rounded-md px-4 text-sm font-semibold transition ${
                   activeModule === "portfolio"
-                    ? "bg-[#b88a3d] text-[#10131f]"
-                    : "text-[#eadfca] hover:bg-[#242b43]"
+                    ? "bg-[#d99a2b] text-[#18181b]"
+                    : "text-[#d9deea] hover:bg-[#20283a]"
                 }`}
               >
                 {t.portfolio}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveModule("editor");
+                  void openBlankPixelEditor();
+                }}
+                className={`h-9 rounded-md px-4 text-sm font-semibold transition ${
+                  activeModule === "editor"
+                    ? "bg-[#d99a2b] text-[#18181b]"
+                    : "text-[#d9deea] hover:bg-[#20283a]"
+                }`}
+              >
+                {t.editor}
               </button>
             </div>
           </div>
@@ -1563,30 +1677,30 @@ export default function Home() {
           <div className="flex flex-wrap items-center justify-end gap-3">
             {authUser ? (
               <div className="flex items-center gap-2">
-                <div className="flex h-10 items-center gap-2 rounded-full border border-[#8d6f37] bg-[#1d1924] px-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-                  <span className="rounded-full border border-[#b88a3d] bg-[#3a2a1a] px-2 py-0.5 text-[10px] font-bold uppercase text-[#f0c36e]">
+                <div className="flex h-10 items-center gap-2 rounded-full border border-[#2a3142] bg-[#111827] px-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                  <span className="rounded-full border border-[#d99a2b] bg-[#211a12] px-2 py-1 text-[10px] font-bold uppercase text-[#f0b84f]">
                     {t.points}
                   </span>
-                  <span className="text-sm font-bold text-[#f0c36e]">
+                  <span className="text-sm font-bold text-[#f0b84f]">
                     {authUser.points}
                   </span>
-                  <span className="h-4 w-px bg-[#6f5732]" />
+                  <span className="h-4 w-px bg-[#27272a]" />
                   <button
                     type="button"
                     onClick={openBilling}
-                    className="rounded-full px-1.5 py-0.5 text-xs font-bold text-[#fff2d4] transition hover:bg-[#3a1f2b] hover:text-[#f0c36e]"
+                    className="rounded-full px-2 py-1 text-xs font-bold text-[#fafafa] transition hover:bg-[#3a1f2b] hover:text-[#f0b84f]"
                   >
                     {t.recharge}
                   </button>
                 </div>
-                <div className="flex h-12 items-center gap-3 rounded-lg border border-[#6f5732] bg-[#0e1220] px-3">
-                  <p className="max-w-32 truncate text-sm font-semibold text-[#fff2d4]">
+                <div className="flex h-12 items-center gap-3 rounded-lg border border-[#2a3142] bg-[#080b13] px-3">
+                  <p className="max-w-32 truncate text-sm font-semibold text-[#fafafa]">
                     {authUser.username}
                   </p>
                   <button
                     type="button"
                     onClick={logout}
-                    className="rounded-md border border-[#6f5732] px-2 py-1 text-xs font-semibold text-[#eadfca] transition hover:border-[#b88a3d]"
+                    className="rounded-md border border-[#2a3142] px-2 py-1 text-xs font-semibold text-[#d9deea] transition hover:border-[#d99a2b]"
                   >
                     {t.logout}
                   </button>
@@ -1597,28 +1711,28 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => openAuth("login")}
-                  className="h-10 rounded-lg border border-[#6f5732] bg-[#0e1220] px-4 text-sm font-semibold text-[#fff2d4] transition hover:border-[#4aa394]"
+                  className="h-10 rounded-lg border border-[#2a3142] bg-[#080b13] px-4 text-sm font-semibold text-[#fafafa] transition hover:border-[#2dd4bf]"
                 >
                   {t.login}
                 </button>
                 <button
                   type="button"
                   onClick={() => openAuth("register")}
-                  className="h-10 rounded-lg bg-[#8f3a35] px-4 text-sm font-bold text-[#fff2d4] transition hover:bg-[#a8443d]"
+                  className="h-10 rounded-lg bg-[#9f2f2b] px-4 text-sm font-bold text-[#fafafa] transition hover:bg-[#b83a35]"
                 >
                   {t.register}
                 </button>
               </div>
             )}
 
-            <label className="flex h-10 items-center gap-2 rounded-lg border border-[#6f5732] bg-[#0e1220] px-3 text-sm text-[#d8cbb5] xl:absolute xl:right-8 xl:top-4">
+            <label className="flex h-10 items-center gap-2 rounded-lg border border-[#2a3142] bg-[#080b13] px-3 text-sm text-[#d4d4d8] xl:absolute xl:right-8 xl:top-4">
               <span>{t.language}</span>
               <select
                 value={language}
                 onChange={(event) => setLanguage(event.target.value as Language)}
-                className="h-8 rounded-md border border-[#6f5732] bg-[#171b2b] px-2 text-sm font-semibold text-[#fff2d4] outline-none transition focus:border-[#4aa394]"
+                className="h-8 rounded-md border border-[#2a3142] bg-[#111827] px-2 text-sm font-semibold text-[#fafafa] outline-none transition focus:border-[#2dd4bf]"
               >
-                <option value="zh">中文</option>
+                <option value="zh">{"\u4e2d\u6587"}</option>
                 <option value="en">English</option>
               </select>
             </label>
@@ -1626,14 +1740,14 @@ export default function Home() {
         </div>
       </nav>
 
-      <div className="mx-auto flex min-h-[calc(100vh-89px)] w-full max-w-7xl flex-col gap-6 px-5 py-6 sm:px-8 lg:px-10">
+      <div className="mx-auto flex min-h-[calc(100vh-89px)] w-full max-w-7xl flex-col gap-4 px-6 py-6 sm:px-8 lg:px-10">
         {paymentMessage && (
-          <div className="flex items-center justify-between gap-4 rounded-lg border border-[#4aa394] bg-[#102621] p-3 text-sm font-semibold text-[#a7f0df]">
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-[#2dd4bf]/40 bg-[#09231f] p-3 text-sm font-semibold text-[#99f6e4]">
             <span>{paymentMessage}</span>
             <button
               type="button"
               onClick={() => setPaymentMessage("")}
-              className="rounded-md border border-[#4aa394] px-2 py-1 text-xs text-[#dffcf5] transition hover:bg-[#17372f]"
+              className="rounded-md border border-[#2dd4bf]/50 px-2 py-1 text-xs text-[#ccfbf1] transition hover:bg-[#134e4a]"
             >
               {t.close}
             </button>
@@ -1642,18 +1756,18 @@ export default function Home() {
 
         {activeModule === "character" ? (
           <>
-            <header className="border-b border-[#3a3140] pb-5">
-              <p className="max-w-3xl text-sm leading-6 text-[#b8aa92] sm:text-base">
+            <header className="border-b border-[#243049] pb-6">
+              <p className="max-w-3xl text-sm leading-6 text-[#8f9aaf] sm:text-base">
                 {typedIntro}
-                <span className="ml-0.5 inline-block h-4 w-2 translate-y-0.5 animate-pulse bg-[#c69a4a]" />
+                <span className="ml-1 inline-block h-4 w-2 translate-y-0.5 animate-pulse bg-[#c69a4a]" />
               </p>
             </header>
 
-            <section className="grid flex-1 gap-6 xl:grid-cols-[minmax(0,760px)_minmax(420px,1fr)]">
+            <section className="grid flex-1 gap-4 xl:grid-cols-[minmax(0,760px)_minmax(420px,1fr)]">
               <div className="flex flex-col gap-4">
                 <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-                  <div className="flex flex-col gap-2 rounded-lg border border-[#6f5732] bg-[#171b2b] p-4">
-                    <label className="text-sm font-semibold text-[#eadfca]" htmlFor="desc">
+                  <div className="flex flex-col gap-2 rounded-lg border border-[#2a3142] bg-[#151b2b] p-6">
+                    <label className="text-sm font-semibold text-[#d9deea]" htmlFor="desc">
                       {t.label}
                     </label>
                     <textarea
@@ -1661,27 +1775,27 @@ export default function Home() {
                       value={description}
                       onChange={(event) => setDescription(event.target.value)}
                       placeholder={t.placeholder}
-                      className="min-h-[312px] w-full flex-1 resize-none rounded-lg border border-[#6f5732] bg-[#0e1220] p-4 text-base leading-7 text-[#fff2d4] outline-none transition placeholder:text-[#7f735f] focus:border-[#4aa394]"
+                      className="min-h-[312px] w-full flex-1 resize-none rounded-lg border border-[#2a3142] bg-[#0b1020] p-4 text-base leading-7 text-[#fafafa] outline-none transition placeholder:text-[#647084] focus:border-[#2dd4bf]"
                     />
                   </div>
 
                   <div className="flex flex-col gap-4">
-                    <div className="rounded-lg border border-[#6f5732] bg-[#171b2b] p-4">
+                    <div className="rounded-lg border border-[#2a3142] bg-[#151b2b] p-6">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="text-sm font-semibold text-[#eadfca]">
-                            {t.upload} <span className="text-xs font-medium text-[#9f927d]">({t.optional})</span>
+                          <p className="text-sm font-semibold text-[#d9deea]">
+                            {t.upload} <span className="text-xs font-medium text-[#8f9aaf]">({t.optional})</span>
                           </p>
-                          <p className="mt-1 text-xs leading-5 text-[#9f927d]">{t.uploadHint}</p>
+                          <p className="mt-1 text-xs leading-5 text-[#8f9aaf]">{t.uploadHint}</p>
                         </div>
-                        <span className="shrink-0 rounded-md border border-[#b88a3d] bg-[#3a2818] px-2.5 py-1 text-xs font-bold text-[#f0c36e]">
+                        <span className="shrink-0 rounded-md border border-[#d99a2b] bg-[#211a12] px-3 py-1 text-xs font-bold text-[#f0b84f]">
                           {t.referenceExtraCost}
                         </span>
                         {characterReferenceImage && (
                           <button
                             type="button"
                             onClick={() => setCharacterReferenceImage("")}
-                            className="rounded-md border border-[#6f5732] px-3 py-1 text-xs font-semibold text-[#eadfca] transition hover:border-[#b88a3d]"
+                            className="rounded-md border border-[#2a3142] px-3 py-1 text-xs font-semibold text-[#d9deea] transition hover:border-[#d99a2b]"
                           >
                             {t.removeImage}
                           </button>
@@ -1689,7 +1803,7 @@ export default function Home() {
                       </div>
 
                       <div className="mt-3 flex items-center gap-3">
-                        <label className="inline-flex h-10 cursor-pointer items-center rounded-lg bg-[#8f3a35] px-4 text-sm font-bold text-[#fff2d4] transition hover:bg-[#a8443d]">
+                        <label className="inline-flex h-10 cursor-pointer items-center rounded-lg bg-[#9f2f2b] px-4 text-sm font-bold text-[#fafafa] transition hover:bg-[#b83a35]">
                           {t.uploadButton}
                           <input
                             type="file"
@@ -1705,18 +1819,18 @@ export default function Home() {
                             width={64}
                             height={64}
                             unoptimized
-                            className="h-16 w-16 rounded-md border border-[#6f5732] object-cover"
+                            className="h-16 w-16 rounded-md border border-[#2a3142] object-cover"
                           />
                         )}
                       </div>
                     </div>
 
-                    <div className="rounded-lg border border-[#6f5732] bg-[#171b2b] p-4">
+                    <div className="rounded-lg border border-[#2a3142] bg-[#151b2b] p-6">
                       <div>
-                        <p className="text-sm font-semibold text-[#eadfca]">
+                        <p className="text-sm font-semibold text-[#d9deea]">
                           {t.styleTemplate}
                         </p>
-                        <p className="mt-1 text-xs leading-5 text-[#9f927d]">{t.styleHint}</p>
+                        <p className="mt-1 text-xs leading-5 text-[#8f9aaf]">{t.styleHint}</p>
                       </div>
 
                       <div className="mt-3 grid grid-cols-2 gap-3">
@@ -1724,17 +1838,28 @@ export default function Home() {
                           type="button"
                           aria-label={t.noTemplate}
                           onClick={() => setStyleTemplate("none")}
-                          className={`flex min-h-40 flex-col rounded-lg border p-3 text-left transition ${
+                          className={`flex min-h-44 flex-col rounded-lg border p-4 text-left transition ${
                             styleTemplate === "none"
-                              ? "border-[#b88a3d] bg-[#241d23] shadow-[0_0_0_1px_rgba(240,195,110,0.18)]"
-                              : "border-[#46384a] bg-[#0e1220] hover:border-[#6f5732]"
+                              ? "border-[#d99a2b] bg-[#211a12] shadow-[0_0_0_1px_rgba(217,154,43,0.22)]"
+                              : "border-[#2a3142] bg-[#080b13] hover:border-[#2a3142]"
                           }`}
                         >
-                          <div className="flex flex-1 flex-col justify-between">
+                          <div className="flex flex-1 flex-col justify-between gap-3">
                             <div>
-                              <span className="text-sm font-semibold text-[#fff2d4]">
+                              <span className="text-sm font-semibold text-[#fafafa]">
                                 {t.noTemplate}
                               </span>
+                            </div>
+                            <div className="flex justify-center">
+                              <Image
+                                src="/landing/default-template-showcase.png"
+                                alt={t.noTemplate}
+                                width={128}
+                                height={128}
+                                unoptimized
+                                className="h-32 w-24 max-w-full object-contain"
+                                style={{ imageRendering: "pixelated" }}
+                              />
                             </div>
                           </div>
                         </button>
@@ -1744,26 +1869,26 @@ export default function Home() {
                             type="button"
                             aria-label={option[language]}
                             onClick={() => setStyleTemplate(option.id)}
-                            className={`flex min-h-40 flex-col rounded-lg border p-3 text-left transition ${
+                            className={`flex min-h-44 flex-col rounded-lg border p-4 text-left transition ${
                               styleTemplate === option.id
-                                ? "border-[#b88a3d] bg-[#241d23] shadow-[0_0_0_1px_rgba(240,195,110,0.18)]"
-                                : "border-[#46384a] bg-[#0e1220] hover:border-[#6f5732]"
+                                ? "border-[#d99a2b] bg-[#211a12] shadow-[0_0_0_1px_rgba(217,154,43,0.22)]"
+                                : "border-[#2a3142] bg-[#080b13] hover:border-[#2a3142]"
                             }`}
                           >
                             <div className="flex flex-1 flex-col justify-between gap-3">
-                              <div className="rounded-md bg-[#eadfca] p-2">
+                              <div className="rounded-md bg-[#fafafa] p-2">
                                 <Image
                                   src={option.image}
                                   alt={option[language]}
-                                  width={96}
-                                  height={96}
+                                  width={128}
+                                  height={128}
                                   unoptimized
-                                  className="aspect-square w-full rounded object-contain"
+                                  className="mx-auto h-24 w-24 max-w-full rounded object-contain"
                                   style={{ imageRendering: "pixelated" }}
                                 />
                               </div>
                               <div className="flex justify-center">
-                                <span className="inline-flex rounded-md border border-[#b88a3d] bg-[#3a2818] px-2.5 py-1 text-xs font-bold text-[#f0c36e] shadow-[0_0_12px_rgba(240,195,110,0.12)]">
+                                <span className="inline-flex rounded-md border border-[#d99a2b] bg-[#211a12] px-3 py-1 text-xs font-bold text-[#f0b84f] shadow-[0_0_12px_rgba(217,154,43,0.16)]">
                                   {t.templateExtraCost}
                                 </span>
                               </div>
@@ -1773,14 +1898,14 @@ export default function Home() {
                       </div>
                     </div>
 
-                    <div className="rounded-lg border border-[#6f5732] bg-[#171b2b] p-4">
-                      <p className="text-sm font-semibold text-[#eadfca]">
+                    <div className="rounded-lg border border-[#2a3142] bg-[#151b2b] p-6">
+                      <p className="text-sm font-semibold text-[#d9deea]">
                         {t.generationSettings}
                       </p>
 
                       <div className="mt-3 flex flex-col gap-4">
                         <div>
-                          <p className="mb-2 text-xs font-semibold text-[#9f927d]">{t.direction}</p>
+                          <p className="mb-2 text-xs font-semibold text-[#8f9aaf]">{t.direction}</p>
                           <div className="grid grid-cols-4 gap-2">
                             {directionOptions.map((option) => (
                               <button
@@ -1789,8 +1914,8 @@ export default function Home() {
                                 onClick={() => setDirection(option.id)}
                                 className={`rounded-md border px-2 py-2 text-xs font-bold transition ${
                                   direction === option.id
-                                    ? "border-[#b88a3d] bg-[#3a2818] text-[#f0c36e]"
-                                    : "border-[#46384a] bg-[#0e1220] text-[#eadfca] hover:border-[#6f5732]"
+                                    ? "border-[#d99a2b] bg-[#211a12] text-[#f0b84f]"
+                                    : "border-[#2a3142] bg-[#080b13] text-[#d9deea] hover:border-[#2a3142]"
                                 }`}
                               >
                                 {option[language]}
@@ -1800,17 +1925,17 @@ export default function Home() {
                         </div>
 
                         <div>
-                          <p className="mb-2 text-xs font-semibold text-[#9f927d]">{t.outputSize}</p>
+                          <p className="mb-2 text-xs font-semibold text-[#8f9aaf]">{t.outputSize}</p>
                           <div className="flex gap-2">
                             {outputSizeOptions.map((size) => (
                               <button
                                 key={size}
                                 type="button"
                                 onClick={() => setOutputSize(size)}
-                                className={`rounded-md border px-2.5 py-2 text-xs font-bold transition ${
+                                className={`rounded-md border px-3 py-2 text-xs font-bold transition ${
                                   outputSize === size
-                                    ? "border-[#b88a3d] bg-[#3a2818] text-[#f0c36e]"
-                                    : "border-[#46384a] bg-[#0e1220] text-[#eadfca] hover:border-[#6f5732]"
+                                    ? "border-[#d99a2b] bg-[#211a12] text-[#f0b84f]"
+                                    : "border-[#2a3142] bg-[#080b13] text-[#d9deea] hover:border-[#2a3142]"
                                 }`}
                               >
                                 {size}
@@ -1821,7 +1946,7 @@ export default function Home() {
 
                         <div className="grid grid-cols-[1fr_88px] gap-3">
                           <div>
-                            <label className="text-xs font-semibold text-[#9f927d]">
+                            <label className="text-xs font-semibold text-[#8f9aaf]">
                               {t.styleStrength}: {styleStrength.toFixed(1)}
                               <input
                                 type="range"
@@ -1830,17 +1955,17 @@ export default function Home() {
                                 step="0.1"
                                 value={styleStrength}
                                 onChange={(event) => setStyleStrength(Number(event.target.value))}
-                                className="mt-2 w-full accent-[#b88a3d]"
+                                className="mt-2 w-full accent-[#d99a2b]"
                               />
                             </label>
                           </div>
-                          <label className="text-xs font-semibold text-[#9f927d]">
+                          <label className="text-xs font-semibold text-[#8f9aaf]">
                             {t.seed}
                             <input
                               value={seed}
                               onChange={(event) => setSeed(event.target.value.replace(/\D/g, "").slice(0, 10))}
                               placeholder={t.randomSeed}
-                              className="mt-2 h-9 w-full rounded-md border border-[#46384a] bg-[#0e1220] px-2 text-xs text-[#eadfca] outline-none placeholder:text-[#7f735f] focus:border-[#4aa394]"
+                              className="mt-2 h-9 w-full rounded-md border border-[#2a3142] bg-[#080b13] px-2 text-xs text-[#d9deea] outline-none placeholder:text-[#647084] focus:border-[#2dd4bf]"
                             />
                           </label>
                         </div>
@@ -1852,24 +1977,21 @@ export default function Home() {
                 <button
                   onClick={generateCharacter}
                   disabled={loading || !canGenerate}
-                  className="h-12 rounded-lg bg-[#8f3a35] px-5 text-base font-bold text-[#fff2d4] transition hover:bg-[#a8443d] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="h-12 rounded-lg bg-[#9f2f2b] px-6 text-base font-bold text-[#fafafa] transition hover:bg-[#b83a35] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {loading ? t.generating : `${t.generate} (${generationCost} Point)`}
                 </button>
 
                 {error && (
-                  <p className="rounded-lg border border-[#8f3a35] bg-[#2a1720] p-3 text-sm text-[#ffb1a8]">
+                  <p className="rounded-lg border border-[#7f1d1d] bg-[#2f0c12] p-3 text-sm text-[#ffb1a8]">
                     {error}
                   </p>
                 )}
 
                 <div className="flex items-center gap-3">
-                  <div className="min-h-28 flex-1 rounded-lg border border-[#6f5732] bg-[#171b2b] p-4">
-                    <p className="text-sm leading-6 text-[#b8aa92]">
+                  <div className="min-h-28 flex-1 rounded-lg border border-[#2a3142] bg-[#151b2b] p-6">
+                    <p className="text-sm leading-6 text-[#8f9aaf]">
                       {t.info}
-                    </p>
-                    <p className="mt-2 text-xs leading-5 text-[#9f927d]">
-                      {t.commercialNote}
                     </p>
                   </div>
                   <Image
@@ -1884,7 +2006,7 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="flex min-h-[500px] items-center justify-center rounded-lg border border-[#6f5732] bg-[#171b2b] p-6">
+              <div className="flex min-h-[500px] items-center justify-center rounded-lg border border-[#2a3142] bg-[#151b2b] p-6">
                 {imageUrl ? (
                   <div className="flex flex-col items-center gap-4">
                     <Image
@@ -1904,39 +2026,39 @@ export default function Home() {
                       <button
                         type="button"
                         onClick={downloadDisplayedImage}
-                        className="rounded-lg border border-[#6f5732] bg-[#0e1220] px-4 py-2 text-sm font-semibold text-[#fff2d4] transition hover:border-[#4aa394]"
+                        className="rounded-lg border border-[#2a3142] bg-[#0b1020] px-4 py-2 text-sm font-semibold text-[#fafafa] transition hover:border-[#2dd4bf]"
                       >
                         {t.download}
                       </button>
                       <button
                         type="button"
                         onClick={() => setIsImageFlipped((flipped) => !flipped)}
-                        className="rounded-lg border border-[#6f5732] bg-[#0e1220] px-4 py-2 text-sm font-semibold text-[#fff2d4] transition hover:border-[#4aa394]"
+                        className="rounded-lg border border-[#2a3142] bg-[#0b1020] px-4 py-2 text-sm font-semibold text-[#fafafa] transition hover:border-[#2dd4bf]"
                       >
                         {t.flipHorizontal}
                       </button>
                       <button
                         type="button"
                         onClick={copyGeneratedImage}
-                        className="rounded-lg border border-[#6f5732] bg-[#0e1220] px-4 py-2 text-sm font-semibold text-[#fff2d4] transition hover:border-[#4aa394]"
+                        className="rounded-lg border border-[#2a3142] bg-[#0b1020] px-4 py-2 text-sm font-semibold text-[#fafafa] transition hover:border-[#2dd4bf]"
                       >
                         {copied ? t.copied : t.copy}
                       </button>
                     </div>
 
-                    <div className="w-full max-w-sm rounded-lg border border-[#46384a] bg-[#0e1220] p-3">
+                    <div className="w-full max-w-sm rounded-lg border border-[#2a3142] bg-[#0b1020] p-6">
                       <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm font-bold text-[#eadfca]">{t.spritePreview}</p>
-                        <div className="flex rounded-md border border-[#46384a] bg-[#171b2b] p-1">
+                        <p className="text-sm font-bold text-[#d9deea]">{t.spritePreview}</p>
+                        <div className="flex rounded-md border border-[#2a3142] bg-[#111827] p-1">
                           {(["idle", "walk"] as const).map((kind) => (
                             <button
                               key={kind}
                               type="button"
                               onClick={() => setSpriteAnimation(kind)}
-                              className={`rounded px-2.5 py-1 text-xs font-bold transition ${
+                              className={`rounded px-3 py-1 text-xs font-bold transition ${
                                 spriteAnimation === kind
-                                  ? "bg-[#b88a3d] text-[#10131f]"
-                                  : "text-[#eadfca] hover:bg-[#242b43]"
+                                  ? "bg-[#d99a2b] text-[#18181b]"
+                                  : "text-[#d9deea] hover:bg-[#20283a]"
                               }`}
                             >
                               {kind === "idle" ? t.idle : t.walk}
@@ -1944,7 +2066,7 @@ export default function Home() {
                           ))}
                         </div>
                       </div>
-                      <div className="mt-3 flex items-center justify-center rounded-md border border-[#26304b] bg-[#171b2b] p-3">
+                      <div className="mt-3 flex items-center justify-center rounded-md border border-[#334155] bg-[#141824] p-3">
                         <canvas
                           ref={spritePreviewCanvasRef}
                           className="h-28 w-28"
@@ -1955,14 +2077,14 @@ export default function Home() {
                         <button
                           type="button"
                           onClick={() => void exportSpriteSheet(spriteAnimation)}
-                          className="rounded-lg border border-[#6f5732] bg-[#171b2b] px-3 py-2 text-sm font-semibold text-[#fff2d4] transition hover:border-[#4aa394]"
+                          className="rounded-lg border border-[#2a3142] bg-[#111827] px-3 py-2 text-sm font-semibold text-[#fafafa] transition hover:border-[#2dd4bf]"
                         >
                           {t.exportSpriteSheet}
                         </button>
                         <button
                           type="button"
                           onClick={() => void exportSpriteGif(spriteAnimation)}
-                          className="rounded-lg border border-[#6f5732] bg-[#171b2b] px-3 py-2 text-sm font-semibold text-[#fff2d4] transition hover:border-[#4aa394]"
+                          className="rounded-lg border border-[#2a3142] bg-[#111827] px-3 py-2 text-sm font-semibold text-[#fafafa] transition hover:border-[#2dd4bf]"
                         >
                           {t.exportGif}
                         </button>
@@ -1973,14 +2095,14 @@ export default function Home() {
                       <button
                         type="button"
                         onClick={() => void openPixelEditor()}
-                        className="rounded-lg border border-[#f0c36e] bg-[#b88a3d] px-5 py-2.5 text-sm font-black text-[#10131f] shadow-[0_10px_24px_rgba(184,138,61,0.22)] transition hover:border-[#fff2d4] hover:bg-[#f0c36e]"
+                        className="rounded-lg border border-[#d99a2b] bg-[#d99a2b] px-6 py-3 text-sm font-black text-[#18181b] shadow-[0_10px_24px_rgba(217,154,43,0.22)] transition hover:border-[#fafafa] hover:bg-[#eab54a]"
                       >
                         {t.editPixels}
                       </button>
                     </div>
                   </div>
                 ) : (
-                  <div className="text-center text-sm text-[#9f927d]">
+                  <div className="text-center text-sm text-[#8f9aaf]">
                     {t.emptyResult}
                   </div>
                 )}
@@ -1988,16 +2110,16 @@ export default function Home() {
             </section>
           </>
         ) : activeModule === "animation" ? (
-          <section className="grid flex-1 gap-6 lg:grid-cols-[minmax(0,440px)_minmax(0,1fr)]">
-            <div className="rounded-lg border border-[#6f5732] bg-[#171b2b] p-5">
-              <h2 className="text-xl font-bold text-[#fff2d4]">
+          <section className="grid flex-1 gap-4 lg:grid-cols-[minmax(0,440px)_minmax(0,1fr)]">
+            <div className="rounded-lg border border-[#2a3142] bg-[#151b2b] p-6">
+              <h2 className="text-xl font-bold text-[#fafafa]">
                 {t.animationTitle}
               </h2>
-              <p className="mt-3 text-sm leading-6 text-[#b8aa92]">
+              <p className="mt-3 text-sm leading-6 text-[#8f9aaf]">
                 {t.animationIntro}
               </p>
             </div>
-            <div className="flex min-h-[560px] items-center justify-center rounded-lg border border-[#6f5732] bg-[#171b2b] p-6">
+            <div className="flex min-h-[560px] items-center justify-center rounded-lg border border-[#2a3142] bg-[#151b2b] p-6">
               <Image
                 src="/charge_sprite/charge-loop.gif"
                 alt="Animation preview"
@@ -2009,25 +2131,145 @@ export default function Home() {
               />
             </div>
           </section>
-        ) : (
-          <section className="flex flex-1 flex-col gap-5">
-            <div className="rounded-lg border border-[#6f5732] bg-[#171b2b] p-5">
-              <h2 className="text-xl font-bold text-[#fff2d4]">
-                {t.portfolioTitle}
-              </h2>
-              <p className="mt-3 text-sm leading-6 text-[#b8aa92]">
-                {t.portfolioIntro}
-              </p>
+        ) : activeModule === "editor" ? (
+          <section className="flex flex-1 flex-col gap-4">
+            <div className="rounded-lg border border-[#2a3142] bg-[#151b2b] p-6">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-[#fafafa]">
+                    {t.editorTitle}
+                  </h2>
+                  <p className="mt-3 max-w-2xl text-sm leading-6 text-[#8f9aaf]">
+                    {t.editorIntro}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void openBlankPixelEditor()}
+                    className="rounded-lg border border-[#d99a2b] bg-[#d99a2b] px-4 py-2 text-sm font-bold text-[#18181b] transition hover:bg-[#eab54a]"
+                  >
+                    {t.openBlankEditor}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => pixelImportInputRef.current?.click()}
+                    className="rounded-lg border border-[#2a3142] bg-[#0b1020] px-4 py-2 text-sm font-semibold text-[#fafafa] transition hover:border-[#2dd4bf]"
+                  >
+                    {t.importImage}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_240px]">
+              <div className="flex min-h-[560px] items-center justify-center rounded-lg border border-[#2a3142] bg-[linear-gradient(45deg,#111827_25%,transparent_25%),linear-gradient(-45deg,#111827_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#111827_75%),linear-gradient(-45deg,transparent_75%,#111827_75%)] bg-[length:24px_24px] bg-[position:0_0,0_12px,12px_-12px,-12px_0] p-6">
+                {pixelEditorOpen ? (
+                  <canvas
+                    ref={pixelCanvasRef}
+                    onPointerDown={beginPixelStroke}
+                    onPointerMove={drawPixel}
+                    className="max-h-[640px] max-w-full rounded border border-[#2a3142] bg-transparent"
+                    style={{
+                      imageRendering: "pixelated",
+                      width: `${Math.min(pixelEditorSize.width * pixelEditorZoom, 720)}px`,
+                      height: `${Math.min(pixelEditorSize.height * pixelEditorZoom, 720)}px`,
+                    }}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void openBlankPixelEditor()}
+                    className="rounded-lg border border-[#d99a2b] bg-[#211a12] px-6 py-3 text-sm font-bold text-[#f0b84f] transition hover:bg-[#20283a]"
+                  >
+                    {t.openBlankEditor}
+                  </button>
+                )}
+              </div>
+
+              <div className="rounded-lg border border-[#2a3142] bg-[#151b2b] p-6">
+                <div className="flex flex-col gap-4">
+                  <div>
+                    <h2 className="text-lg font-bold text-[#fafafa]">{t.pixelEditorTitle}</h2>
+                    <p className="mt-1 text-xs text-[#8f9aaf]">
+                      {pixelEditorSize.width} x {pixelEditorSize.height}
+                    </p>
+                  </div>
+                  <label className="text-xs font-semibold text-[#8f9aaf]">
+                    {t.zoom}: {pixelEditorZoom}x
+                    <input
+                      type="range"
+                      min="2"
+                      max="8"
+                      step="1"
+                      value={pixelEditorZoom}
+                      onChange={(event) => setPixelEditorZoom(Number(event.target.value))}
+                      className="mt-2 w-full accent-[#d99a2b]"
+                    />
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPixelTool("brush")}
+                      className={`rounded-lg border px-3 py-2 text-sm font-bold transition ${
+                        pixelTool === "brush"
+                          ? "border-[#d99a2b] bg-[#d99a2b] text-[#18181b]"
+                          : "border-[#2a3142] bg-[#080b13] text-[#d9deea] hover:border-[#2a3142]"
+                      }`}
+                    >
+                      {t.brush}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPixelTool("eraser")}
+                      className={`rounded-lg border px-3 py-2 text-sm font-bold transition ${
+                        pixelTool === "eraser"
+                          ? "border-[#d99a2b] bg-[#d99a2b] text-[#18181b]"
+                          : "border-[#2a3142] bg-[#080b13] text-[#d9deea] hover:border-[#2a3142]"
+                      }`}
+                    >
+                      {t.eraser}
+                    </button>
+                  </div>
+                  <input
+                    type="color"
+                    value={pixelColor}
+                    onChange={(event) => setPixelColor(event.target.value)}
+                    className="h-11 w-full rounded-lg border border-[#2a3142] bg-[#080b13] p-1"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => pixelImportInputRef.current?.click()}
+                    className="rounded-lg border border-[#2a3142] bg-[#0b1020] px-3 py-2 text-sm font-bold text-[#d9deea] transition hover:border-[#2dd4bf]"
+                  >
+                    {t.importImage}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={undoPixelEdit}
+                    className="rounded-lg border border-[#2a3142] bg-[#0b1020] px-3 py-2 text-sm font-bold text-[#d9deea] transition hover:border-[#2dd4bf]"
+                  >
+                    {t.undo}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={savePixelEditToPreview}
+                    className="rounded-lg bg-[#9f2f2b] px-3 py-2 text-sm font-bold text-[#fafafa] transition hover:bg-[#b83a35]"
+                  >
+                    {t.saveEdit}
+                  </button>
+                </div>
+              </div>
             </div>
 
             {portfolioError && (
-              <p className="rounded-lg border border-[#8f3a35] bg-[#2a1720] p-3 text-sm text-[#ffb1a8]">
+              <p className="rounded-lg border border-[#7f1d1d] bg-[#2f0c12] p-3 text-sm text-[#ffb1a8]">
                 {portfolioError}
               </p>
             )}
 
             {portfolioLoading ? (
-              <div className="flex min-h-[420px] items-center justify-center rounded-lg border border-[#6f5732] bg-[#171b2b] text-sm text-[#9f927d]">
+              <div className="flex min-h-[320px] items-center justify-center rounded-lg border border-[#2a3142] bg-[#151b2b] p-6 text-sm text-[#8f9aaf]">
                 {language === "zh" ? "加载中..." : "Loading..."}
               </div>
             ) : portfolioItems.length > 0 ? (
@@ -2035,9 +2277,70 @@ export default function Home() {
                 {portfolioItems.map((item) => (
                   <article
                     key={item.id}
-                    className="group relative rounded-lg border border-[#6f5732] bg-[#171b2b] p-3"
+                    className="rounded-lg border border-[#2a3142] bg-[#151b2b] p-6"
                   >
-                    <div className="flex aspect-square items-center justify-center rounded-md border border-[#46384a] bg-[#0e1220] p-3">
+                    <div className="flex aspect-square items-center justify-center rounded-md border border-[#2a3142] bg-[#080b13] p-3">
+                      <Image
+                        src={item.imageUrl}
+                        alt={item.description || "Generated pixel character"}
+                        width={128}
+                        height={128}
+                        unoptimized
+                        onError={() => void removeBrokenPortfolioImage(item.id)}
+                        className="h-full w-full object-contain"
+                        style={{ imageRendering: "pixelated" }}
+                      />
+                    </div>
+                    <div className="mt-3 flex items-center justify-between gap-2">
+                      <p className="line-clamp-1 text-sm font-bold text-[#fafafa]">
+                        {item.title || item.description || (language === "zh" ? "未命名资产" : "Untitled Asset")}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => void openPortfolioImageInEditor(item)}
+                        className="shrink-0 rounded-md border border-[#d99a2b] bg-[#211a12] px-3 py-2 text-xs font-bold text-[#f0b84f] transition hover:bg-[#20283a]"
+                      >
+                        {t.editThisImage}
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="flex min-h-[320px] items-center justify-center rounded-lg border border-[#2a3142] bg-[#151b2b] p-6 text-center text-sm text-[#8f9aaf]">
+                {authUser ? t.emptyPortfolio : t.editorEmptyPortfolio}
+              </div>
+            )}
+          </section>
+        ) : (
+          <section className="flex flex-1 flex-col gap-4">
+            <div className="rounded-lg border border-[#2a3142] bg-[#151b2b] p-6">
+              <h2 className="text-xl font-bold text-[#fafafa]">
+                {t.portfolioTitle}
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-[#8f9aaf]">
+                {t.portfolioIntro}
+              </p>
+            </div>
+
+            {portfolioError && (
+              <p className="rounded-lg border border-[#7f1d1d] bg-[#2f0c12] p-3 text-sm text-[#ffb1a8]">
+                {portfolioError}
+              </p>
+            )}
+
+            {portfolioLoading ? (
+              <div className="flex min-h-[420px] items-center justify-center rounded-lg border border-[#2a3142] bg-[#151b2b] p-6 text-sm text-[#8f9aaf]">
+                {language === "zh" ? "加载中..." : "Loading..."}
+              </div>
+            ) : portfolioItems.length > 0 ? (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {portfolioItems.map((item) => (
+                  <article
+                    key={item.id}
+                    className="group relative rounded-lg border border-[#2a3142] bg-[#151b2b] p-6"
+                  >
+                    <div className="flex aspect-square items-center justify-center rounded-md border border-[#2a3142] bg-[#080b13] p-3">
                       <Image
                         src={item.imageUrl}
                         alt={item.description || "Generated pixel character"}
@@ -2053,35 +2356,40 @@ export default function Home() {
                       href={item.imageUrl}
                       download
                       aria-label={t.download}
-                      className="absolute right-5 top-5 flex h-9 w-9 items-center justify-center rounded-lg border border-[#6f5732] bg-[#0e1220]/90 text-sm font-bold text-[#fff2d4] opacity-100 shadow-[0_8px_20px_rgba(0,0,0,0.35)] transition hover:border-[#4aa394] sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+                      className="hidden"
                     >
                       ↓
                     </a>
                     <button
                       type="button"
-                      onClick={() => void updatePortfolioItem(item.id, { favorite: !item.favorite })}
-                      aria-label={t.favorite}
-                      className={`absolute left-5 top-5 flex h-9 w-9 items-center justify-center rounded-lg border border-[#6f5732] bg-[#0e1220]/90 text-sm font-bold shadow-[0_8px_20px_rgba(0,0,0,0.35)] transition hover:border-[#b88a3d] ${
-                        item.favorite ? "text-[#f0c36e]" : "text-[#eadfca]"
-                      }`}
-                    >
-                      ★
-                    </button>
-                    <button
-                      type="button"
                       onClick={() => void deletePortfolioImage(item.id)}
                       aria-label={t.delete}
-                      className="absolute right-5 top-16 rounded-lg border border-[#6f5732] bg-[#0e1220]/90 px-3 py-2 text-xs font-bold text-[#ffb1a8] opacity-100 shadow-[0_8px_20px_rgba(0,0,0,0.35)] transition hover:border-[#8f3a35] hover:bg-[#2a1720] sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+                      className="hidden"
                     >
-                      {t.delete}
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 24 24"
+                        className="h-4 w-4"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M3 6h18" />
+                        <path d="M8 6V4h8v2" />
+                        <path d="M19 6l-1 14H6L5 6" />
+                        <path d="M10 11v6" />
+                        <path d="M14 11v6" />
+                      </svg>
                     </button>
                     <div className="mt-3 flex flex-col gap-2">
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <p className="line-clamp-1 text-sm font-bold text-[#fff2d4]">
+                          <p className="line-clamp-1 text-sm font-bold text-[#fafafa]">
                             {item.title || item.description || (language === "zh" ? "未命名资产" : "Untitled Asset")}
                           </p>
-                          <p className="mt-1 text-xs uppercase tracking-[0.14em] text-[#9f927d]">
+                          <p className="mt-1 text-xs uppercase tracking-[0.14em] text-[#8f9aaf]">
                             {item.category || "character"}
                           </p>
                         </div>
@@ -2093,25 +2401,49 @@ export default function Home() {
                               void updatePortfolioItem(item.id, { title });
                             }
                           }}
-                          className="rounded-md border border-[#46384a] px-2 py-1 text-xs font-bold text-[#eadfca] transition hover:border-[#b88a3d]"
+                          className="rounded-md border border-[#2a3142] px-2 py-1 text-xs font-bold text-[#d9deea] transition hover:border-[#d99a2b]"
                         >
                           {t.rename}
                         </button>
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-3 gap-2">
                         <button
                           type="button"
-                          onClick={() => void copyPortfolioPrompt(item)}
-                          className="rounded-md border border-[#46384a] bg-[#0e1220] px-2 py-2 text-xs font-bold text-[#eadfca] transition hover:border-[#4aa394]"
+                          onClick={() => void openPortfolioImageInEditor(item)}
+                          className="rounded-md border border-[#d99a2b] bg-[#211a12] px-2 py-2 text-xs font-bold text-[#f0b84f] transition hover:bg-[#20283a]"
                         >
-                          {t.copyPrompt}
+                          {t.editThisImage}
                         </button>
+                        <a
+                          href={item.imageUrl}
+                          download
+                          aria-label={t.download}
+                          className="rounded-md border border-[#2a3142] bg-[#0b1020] px-2 py-2 text-center text-xs font-bold text-[#d9deea] transition hover:border-[#2dd4bf]"
+                        >
+                          {t.download}
+                        </a>
                         <button
                           type="button"
-                          onClick={() => regeneratePortfolioItem(item)}
-                          className="rounded-md border border-[#46384a] bg-[#0e1220] px-2 py-2 text-xs font-bold text-[#eadfca] transition hover:border-[#4aa394]"
+                          onClick={() => void deletePortfolioImage(item.id)}
+                          aria-label={t.delete}
+                          className="flex items-center justify-center rounded-md border border-[#2a3142] bg-[#0b1020] px-2 py-2 text-[#ffb1a8] transition hover:border-[#7f1d1d] hover:bg-[#2f0c12]"
                         >
-                          {t.regenerateSimilar}
+                          <svg
+                            aria-hidden="true"
+                            viewBox="0 0 24 24"
+                            className="h-4 w-4"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M3 6h18" />
+                            <path d="M8 6V4h8v2" />
+                            <path d="M19 6l-1 14H6L5 6" />
+                            <path d="M10 11v6" />
+                            <path d="M14 11v6" />
+                          </svg>
                         </button>
                       </div>
                     </div>
@@ -2119,7 +2451,7 @@ export default function Home() {
                 ))}
               </div>
             ) : (
-              <div className="flex min-h-[420px] items-center justify-center rounded-lg border border-[#6f5732] bg-[#171b2b] text-sm text-[#9f927d]">
+              <div className="flex min-h-[420px] items-center justify-center rounded-lg border border-[#2a3142] bg-[#151b2b] p-6 text-sm text-[#8f9aaf]">
                 {t.emptyPortfolio}
               </div>
             )}
@@ -2127,127 +2459,29 @@ export default function Home() {
         )}
       </div>
 
-      {pixelEditorOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
-          <div className="w-full max-w-3xl rounded-lg border border-[#6f5732] bg-[#171b2b] p-5 shadow-[0_18px_50px_rgba(0,0,0,0.5)]">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-bold text-[#fff2d4]">{t.pixelEditorTitle}</h2>
-                <p className="mt-1 text-xs text-[#9f927d]">
-                  {outputSize} × {outputSize}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPixelEditorOpen(false)}
-                className="h-8 w-8 rounded-md border border-[#6f5732] text-sm font-bold text-[#eadfca] transition hover:border-[#b88a3d]"
-                aria-label="Close"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_180px]">
-              <div className="flex min-h-[360px] items-center justify-center rounded-lg border border-[#46384a] bg-[linear-gradient(45deg,#111827_25%,transparent_25%),linear-gradient(-45deg,#111827_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#111827_75%),linear-gradient(-45deg,transparent_75%,#111827_75%)] bg-[length:24px_24px] bg-[position:0_0,0_12px,12px_-12px,-12px_0] p-4">
-                <canvas
-                  ref={pixelCanvasRef}
-                  onPointerDown={beginPixelStroke}
-                  onPointerMove={drawPixel}
-                  className="max-h-[480px] max-w-full rounded border border-[#6f5732] bg-transparent"
-                  style={{
-                    imageRendering: "pixelated",
-                    width: `${Math.min(outputSize * pixelEditorZoom, 520)}px`,
-                    height: `${Math.min(outputSize * pixelEditorZoom, 520)}px`,
-                  }}
-                />
-              </div>
-
-              <div className="flex flex-col gap-3">
-                <label className="text-xs font-semibold text-[#9f927d]">
-                  {t.zoom}: {pixelEditorZoom}x
-                  <input
-                    type="range"
-                    min="2"
-                    max="8"
-                    step="1"
-                    value={pixelEditorZoom}
-                    onChange={(event) => setPixelEditorZoom(Number(event.target.value))}
-                    className="mt-2 w-full accent-[#b88a3d]"
-                  />
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPixelTool("brush")}
-                    className={`rounded-lg border px-3 py-2 text-sm font-bold transition ${
-                      pixelTool === "brush"
-                        ? "border-[#b88a3d] bg-[#b88a3d] text-[#10131f]"
-                        : "border-[#46384a] bg-[#0e1220] text-[#eadfca] hover:border-[#6f5732]"
-                    }`}
-                  >
-                    {t.brush}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPixelTool("eraser")}
-                    className={`rounded-lg border px-3 py-2 text-sm font-bold transition ${
-                      pixelTool === "eraser"
-                        ? "border-[#b88a3d] bg-[#b88a3d] text-[#10131f]"
-                        : "border-[#46384a] bg-[#0e1220] text-[#eadfca] hover:border-[#6f5732]"
-                    }`}
-                  >
-                    {t.eraser}
-                  </button>
-                </div>
-                <input
-                  type="color"
-                  value={pixelColor}
-                  onChange={(event) => setPixelColor(event.target.value)}
-                  className="h-11 w-full rounded-lg border border-[#46384a] bg-[#0e1220] p-1"
-                />
-                <button
-                  type="button"
-                  onClick={undoPixelEdit}
-                  className="rounded-lg border border-[#46384a] bg-[#0e1220] px-3 py-2 text-sm font-bold text-[#eadfca] transition hover:border-[#4aa394]"
-                >
-                  {t.undo}
-                </button>
-                <button
-                  type="button"
-                  onClick={savePixelEditToPreview}
-                  className="rounded-lg bg-[#8f3a35] px-3 py-2 text-sm font-bold text-[#fff2d4] transition hover:bg-[#a8443d]"
-                >
-                  {t.saveEdit}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {authOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-4">
-          <div className="w-full max-w-md rounded-lg border border-[#6f5732] bg-[#171b2b] p-5 shadow-[0_18px_50px_rgba(0,0,0,0.5)]">
+          <div className="w-full max-w-md rounded-lg border border-[#2a3142] bg-[#151b2b] p-6 shadow-[0_18px_50px_rgba(0,0,0,0.5)]">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-xl font-bold text-[#fff2d4]">
+                <h2 className="text-xl font-bold text-[#fafafa]">
                   {authMode === "login" ? t.loginTitle : t.registerTitle}
                 </h2>
-                <p className="mt-1 text-xs leading-5 text-[#9f927d]">
+                <p className="mt-1 text-xs leading-5 text-[#8f9aaf]">
                   {t.localAuthNote}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setAuthOpen(false)}
-                className="h-8 w-8 rounded-md border border-[#6f5732] text-sm font-bold text-[#eadfca] transition hover:border-[#b88a3d]"
+                className="h-8 w-8 rounded-md border border-[#2a3142] text-sm font-bold text-[#d9deea] transition hover:border-[#d99a2b]"
                 aria-label="Close"
               >
                 ×
               </button>
             </div>
 
-            <div className="mt-5">
+            <div className="mt-6">
               {GOOGLE_CLIENT_ID ? (
                 <div ref={googleButtonRef} className="min-h-11 w-full overflow-hidden rounded-lg" />
               ) : (
@@ -2263,58 +2497,58 @@ export default function Home() {
 
             <form className="mt-4 flex flex-col gap-3" onSubmit={handleAuthSubmit}>
               {authMode === "register" && (
-                <label className="flex flex-col gap-1 text-sm font-semibold text-[#eadfca]">
+                <label className="flex flex-col gap-1 text-sm font-semibold text-[#d9deea]">
                   {t.username}
                   <input
                     value={username}
                     onChange={(event) => setUsername(event.target.value)}
-                    className="h-11 rounded-lg border border-[#6f5732] bg-[#0e1220] px-3 text-sm text-[#fff2d4] outline-none transition placeholder:text-[#7f735f] focus:border-[#4aa394]"
+                    className="h-11 rounded-lg border border-[#2a3142] bg-[#080b13] px-3 text-sm text-[#fafafa] outline-none transition placeholder:text-[#647084] focus:border-[#2dd4bf]"
                   />
                 </label>
               )}
 
-              <label className="flex flex-col gap-1 text-sm font-semibold text-[#eadfca]">
+              <label className="flex flex-col gap-1 text-sm font-semibold text-[#d9deea]">
                 {t.email}
                 <input
                   type="text"
                   inputMode="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  className="h-11 rounded-lg border border-[#6f5732] bg-[#0e1220] px-3 text-sm text-[#fff2d4] outline-none transition placeholder:text-[#7f735f] focus:border-[#4aa394]"
+                  className="h-11 rounded-lg border border-[#2a3142] bg-[#080b13] px-3 text-sm text-[#fafafa] outline-none transition placeholder:text-[#647084] focus:border-[#2dd4bf]"
                 />
               </label>
 
-              <label className="flex flex-col gap-1 text-sm font-semibold text-[#eadfca]">
+              <label className="flex flex-col gap-1 text-sm font-semibold text-[#d9deea]">
                 {t.password}
                 <input
                   type="password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  className="h-11 rounded-lg border border-[#6f5732] bg-[#0e1220] px-3 text-sm text-[#fff2d4] outline-none transition placeholder:text-[#7f735f] focus:border-[#4aa394]"
+                  className="h-11 rounded-lg border border-[#2a3142] bg-[#080b13] px-3 text-sm text-[#fafafa] outline-none transition placeholder:text-[#647084] focus:border-[#2dd4bf]"
                 />
               </label>
 
               {authMode === "register" && (
-                <label className="flex flex-col gap-1 text-sm font-semibold text-[#eadfca]">
+                <label className="flex flex-col gap-1 text-sm font-semibold text-[#d9deea]">
                   {t.confirmPassword}
                   <input
                     type="password"
                     value={confirmPassword}
                     onChange={(event) => setConfirmPassword(event.target.value)}
-                    className="h-11 rounded-lg border border-[#6f5732] bg-[#0e1220] px-3 text-sm text-[#fff2d4] outline-none transition placeholder:text-[#7f735f] focus:border-[#4aa394]"
+                    className="h-11 rounded-lg border border-[#2a3142] bg-[#080b13] px-3 text-sm text-[#fafafa] outline-none transition placeholder:text-[#647084] focus:border-[#2dd4bf]"
                   />
                 </label>
               )}
 
               {authError && (
-                <p className="rounded-lg border border-[#8f3a35] bg-[#2a1720] p-3 text-sm text-[#ffb1a8]">
+                <p className="rounded-lg border border-[#7f1d1d] bg-[#2f0c12] p-3 text-sm text-[#ffb1a8]">
                   {authError}
                 </p>
               )}
 
               <button
                 type="submit"
-                className="mt-1 h-11 rounded-lg bg-[#8f3a35] text-sm font-bold text-[#fff2d4] transition hover:bg-[#a8443d]"
+                className="mt-1 h-11 rounded-lg bg-[#9f2f2b] text-sm font-bold text-[#fafafa] transition hover:bg-[#b83a35]"
               >
                 {authMode === "login" ? t.emailLogin : t.createAccount}
               </button>
@@ -2326,7 +2560,7 @@ export default function Home() {
                 setAuthMode(authMode === "login" ? "register" : "login");
                 setAuthError("");
               }}
-              className="mt-4 w-full text-center text-sm font-semibold text-[#c69a4a] transition hover:text-[#f0c36e]"
+              className="mt-4 w-full text-center text-sm font-semibold text-[#f0b84f] transition hover:text-[#f0b84f]"
             >
               {authMode === "login" ? t.switchToRegister : t.switchToLogin}
             </button>
@@ -2336,27 +2570,27 @@ export default function Home() {
 
       {billingOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-4">
-          <div className="w-full max-w-lg rounded-lg border border-[#6f5732] bg-[#171b2b] p-5 shadow-[0_18px_50px_rgba(0,0,0,0.5)]">
+          <div className="w-full max-w-lg rounded-lg border border-[#2a3142] bg-[#151b2b] p-6 shadow-[0_18px_50px_rgba(0,0,0,0.5)]">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-xl font-bold text-[#fff2d4]">
+                <h2 className="text-xl font-bold text-[#fafafa]">
                   {t.rechargeTitle}
                 </h2>
-                <p className="mt-1 text-xs leading-5 text-[#9f927d]">
+                <p className="mt-1 text-xs leading-5 text-[#8f9aaf]">
                   {t.rechargeIntro}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setBillingOpen(false)}
-                className="h-8 w-8 rounded-md border border-[#6f5732] text-sm font-bold text-[#eadfca] transition hover:border-[#b88a3d]"
+                className="h-8 w-8 rounded-md border border-[#2a3142] text-sm font-bold text-[#d9deea] transition hover:border-[#d99a2b]"
                 aria-label="Close"
               >
                 ×
               </button>
             </div>
 
-            <div className="mt-5 grid gap-3">
+            <div className="mt-6 grid gap-3">
               {billingPackages.map((pointPackage) => {
                 const packageArt = billingPackageArt[pointPackage.id];
 
@@ -2366,13 +2600,13 @@ export default function Home() {
                     type="button"
                     disabled={billingLoading}
                     onClick={() => startCheckout(pointPackage.id)}
-                    className="grid min-h-24 grid-cols-[1fr_auto_auto] items-center gap-4 rounded-lg border border-[#6f5732] bg-[#0e1220] p-4 text-left transition hover:border-[#4aa394] disabled:cursor-not-allowed disabled:opacity-60"
+                    className="grid min-h-24 grid-cols-[1fr_auto_auto] items-center gap-4 rounded-lg border border-[#2a3142] bg-[#0b1020] p-4 text-left transition hover:border-[#2dd4bf] disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <span>
-                      <span className="block text-base font-bold text-[#fff2d4]">
+                      <span className="block text-base font-bold text-[#fafafa]">
                         {language === "zh" ? pointPackage.zhName : pointPackage.enName}
                       </span>
-                      <span className="mt-1 block text-xs text-[#9f927d]">
+                      <span className="mt-1 block text-xs text-[#8f9aaf]">
                         {pointPackage.points} Point
                       </span>
                     </span>
@@ -2390,10 +2624,10 @@ export default function Home() {
                       </span>
                     )}
                     <span className="text-right">
-                      <span className="block text-base font-bold text-[#f0c36e]">
+                      <span className="block text-base font-bold text-[#f0b84f]">
                         ${(pointPackage.amountCents / 100).toFixed(2).toUpperCase()}
                       </span>
-                      <span className="mt-1 block text-xs text-[#9f927d]">
+                      <span className="mt-1 block text-xs text-[#8f9aaf]">
                         {billingLoading ? t.checkoutLoading : t.checkout}
                       </span>
                     </span>
@@ -2402,13 +2636,13 @@ export default function Home() {
               })}
 
               {billingLoading && billingPackages.length === 0 && (
-                <div className="rounded-lg border border-[#46384a] bg-[#0e1220] p-4 text-sm text-[#9f927d]">
+                <div className="rounded-lg border border-[#2a3142] bg-[#0b1020] p-4 text-sm text-[#8f9aaf]">
                   {language === "zh" ? "加载中..." : "Loading..."}
                 </div>
               )}
 
               {billingError && (
-                <p className="rounded-lg border border-[#8f3a35] bg-[#2a1720] p-3 text-sm text-[#ffb1a8]">
+                <p className="rounded-lg border border-[#7f1d1d] bg-[#2f0c12] p-3 text-sm text-[#ffb1a8]">
                   {billingError}
                 </p>
               )}
@@ -2416,8 +2650,8 @@ export default function Home() {
           </div>
         </div>
       )}
-      <footer className="px-6 pb-6 text-center text-xs text-[#7f735f]">
-        <a href="/terms" className="transition hover:text-[#c69a4a]">
+      <footer className="px-6 pb-6 text-center text-xs text-[#71717a]">
+        <a href="/terms" className="transition hover:text-[#f0b84f]">
           {t.legalLinks}
         </a>
       </footer>

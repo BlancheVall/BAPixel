@@ -5,6 +5,10 @@ import { publicUser, setSessionCookie } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
+function errorResponse(code: string, error: string, status: number) {
+  return NextResponse.json({ code, error }, { status });
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -13,7 +17,7 @@ export async function POST(req: NextRequest) {
     const password = String(body.password || "");
 
     if (!username || !email || !password) {
-      return NextResponse.json({ error: "Please complete all fields." }, { status: 400 });
+      return errorResponse("AUTH-REGISTER-FIELDS", "Please complete all fields.", 400);
     }
 
     const existingUser = await prisma.user.findUnique({
@@ -23,7 +27,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (existingUser) {
-      return NextResponse.json({ error: "This email is already registered." }, { status: 409 });
+      return errorResponse("AUTH-REGISTER-EXISTS", "This email is already registered.", 409);
     }
 
     const user = await prisma.user.create({
@@ -44,6 +48,6 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error(error);
 
-    return NextResponse.json({ error: "Registration failed." }, { status: 500 });
+    return errorResponse("AUTH-REGISTER-FAILED", "Registration failed.", 500);
   }
 }

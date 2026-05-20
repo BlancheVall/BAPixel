@@ -7,6 +7,10 @@ import { saveGeneratedImage } from "@/lib/storage";
 
 export const runtime = "nodejs";
 
+function errorResponse(code: string, error: string, status: number) {
+  return NextResponse.json({ code, error }, { status });
+}
+
 type StoredGenerationOptions = {
   outputSize?: unknown;
   backgroundMode?: unknown;
@@ -31,13 +35,13 @@ export async function GET(req: NextRequest) {
     const user = await getSessionUser(req);
 
     if (!user) {
-      return NextResponse.json({ error: "Please log in first." }, { status: 401 });
+      return errorResponse("JOB-AUTH-401", "Please log in first.", 401);
     }
 
     const jobId = new URL(req.url).searchParams.get("id") || "";
 
     if (!jobId) {
-      return NextResponse.json({ error: "Generation job id is required." }, { status: 400 });
+      return errorResponse("JOB-ID-MISSING", "Generation job id is required.", 400);
     }
 
     const job = await prisma.generationJob.findFirst({
@@ -48,7 +52,7 @@ export async function GET(req: NextRequest) {
     });
 
     if (!job) {
-      return NextResponse.json({ error: "Generation job was not found." }, { status: 404 });
+      return errorResponse("JOB-NOT-FOUND", "Generation job was not found.", 404);
     }
 
     if (job.status === "COMPLETED") {
@@ -79,9 +83,9 @@ export async function GET(req: NextRequest) {
           job: {
             id: job.id,
             status: job.status,
-            error: job.error,
           },
-          error: job.error || "Generation failed.",
+          code: "JOB-STORED-FAILED",
+          error: "Generation failed.",
         },
         { status: 500 },
       );
@@ -124,9 +128,9 @@ export async function GET(req: NextRequest) {
           job: {
             id: failedJob.id,
             status: failedJob.status,
-            error: failedJob.error,
           },
-          error: failedJob.error || "Generation failed.",
+          code: "JOB-RUNPOD-FAILED",
+          error: "Generation failed.",
         },
         { status: 500 },
       );
@@ -215,7 +219,7 @@ export async function GET(req: NextRequest) {
     });
 
     if (!billingResult) {
-      return NextResponse.json({ error: "Not enough Points to generate an image." }, { status: 402 });
+      return errorResponse("JOB-POINTS-402", "Not enough Points to generate an image.", 402);
     }
 
     return NextResponse.json({
@@ -242,6 +246,6 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     console.error(error);
 
-    return NextResponse.json({ error: "Failed to check generation job." }, { status: 500 });
+    return errorResponse("JOB-CHECK-FAILED", "Failed to check generation job.", 500);
   }
 }

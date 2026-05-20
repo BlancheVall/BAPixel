@@ -65,8 +65,7 @@ export default function TermsPage() {
             会被用于分析角色特征和生成图片，并可能发送给 AI 服务提供商用于完成该次生成请求。
           </p>
           <p className="text-sm leading-6 text-[#b8aa92]">
-            作品集图片默认在应用内保留 7 天，除非你提前删除。支付信息由 Stripe 处理；本网站不会保存完整银行卡号。
-            我们会尽量保护你的数据安全，但互联网服务无法保证绝对安全。
+            作品集图片默认在应用内保留 7 天，除非你提前删除。
           </p>
           <p className="text-sm leading-6 text-[#b8aa92]">
             We store account details, Point balances, purchase records, prompts, generated image URLs, and recent
@@ -74,8 +73,7 @@ export default function TermsPage() {
             providers for that purpose.
           </p>
           <p className="text-sm leading-6 text-[#b8aa92]">
-            Portfolio images are kept for 7 days in the app unless deleted earlier. Payment details are handled by
-            Stripe; this site does not store full card numbers.
+            Portfolio images are kept for 7 days in the app unless deleted earlier.
           </p>
         </section>
 

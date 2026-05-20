@@ -59,9 +59,9 @@ button:disabled {
 }
 
 .landing-copy-rise {
-  animation: landing-copy-rise 1.2s ease-out 0.8s both;
+  animation: landing-copy-rise 1.2s ease-out 0.1s both;
 }
 
 .landing-mask-fade {
-  animation: landing-mask-fade 1.2s ease-out 0s both;
+  animation: landing-mask-fade 1.2s ease-out 0.3s both;
 }

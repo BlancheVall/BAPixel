@@ -5,6 +5,10 @@ import { publicUser, setSessionCookie } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
+function errorResponse(code: string, error: string, status: number) {
+  return NextResponse.json({ code, error }, { status });
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -12,7 +16,7 @@ export async function POST(req: NextRequest) {
     const password = String(body.password || "");
 
     if (!email || !password) {
-      return NextResponse.json({ error: "Please complete all fields." }, { status: 400 });
+      return errorResponse("AUTH-LOGIN-FIELDS", "Please complete all fields.", 400);
     }
 
     const user = await prisma.user.findUnique({
@@ -22,7 +26,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (!user?.passwordHash || !(await compare(password, user.passwordHash))) {
-      return NextResponse.json({ error: "Email or password is incorrect." }, { status: 401 });
+      return errorResponse("AUTH-LOGIN-CREDENTIALS", "Email or password is incorrect.", 401);
     }
 
     const response = NextResponse.json({
@@ -35,6 +39,6 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error(error);
 
-    return NextResponse.json({ error: "Login failed." }, { status: 500 });
+    return errorResponse("AUTH-LOGIN-FAILED", "Login failed.", 500);
   }
 }

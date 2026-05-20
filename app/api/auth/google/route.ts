@@ -5,21 +5,22 @@ import { publicUser, setSessionCookie } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
+function errorResponse(code: string, error: string, status: number) {
+  return NextResponse.json({ code, error }, { status });
+}
+
 export async function POST(req: NextRequest) {
   try {
     const clientId = process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
     if (!clientId) {
-      return NextResponse.json(
-        { error: "Google login is not configured. Please set GOOGLE_CLIENT_ID." },
-        { status: 500 },
-      );
+      return errorResponse("AUTH-GOOGLE-CONFIG", "Google login is not configured. Please set GOOGLE_CLIENT_ID.", 500);
     }
 
     const { credential } = await req.json();
 
     if (!credential || typeof credential !== "string") {
-      return NextResponse.json({ error: "Google credential is required." }, { status: 400 });
+      return errorResponse("AUTH-GOOGLE-CREDENTIAL", "Google credential is required.", 400);
     }
 
     const client = new OAuth2Client(clientId);
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
     const payload = ticket.getPayload();
 
     if (!payload?.email || !payload.sub) {
-      return NextResponse.json({ error: "Google account data was not returned." }, { status: 400 });
+      return errorResponse("AUTH-GOOGLE-PAYLOAD", "Google account data was not returned.", 400);
     }
 
     const email = payload.email.toLowerCase();
@@ -59,6 +60,6 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error(error);
 
-    return NextResponse.json({ error: "Google login failed." }, { status: 500 });
+    return errorResponse("AUTH-GOOGLE-FAILED", "Google login failed.", 500);
   }
 }

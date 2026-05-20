@@ -5,6 +5,10 @@ import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 
+function errorResponse(code: string, error: string, status: number) {
+  return NextResponse.json({ code, error }, { status });
+}
+
 async function completeCheckoutSession(session: Stripe.Checkout.Session) {
   if (session.payment_status !== "paid") {
     return;
@@ -98,14 +102,14 @@ export async function POST(req: NextRequest) {
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
   if (!webhookSecret) {
-    return NextResponse.json({ error: "STRIPE_WEBHOOK_SECRET is not configured." }, { status: 500 });
+    return errorResponse("WEBHOOK-CONFIG", "STRIPE_WEBHOOK_SECRET is not configured.", 500);
   }
 
   const stripe = getStripe();
   const signature = req.headers.get("stripe-signature");
 
   if (!signature) {
-    return NextResponse.json({ error: "Missing Stripe signature." }, { status: 400 });
+    return errorResponse("WEBHOOK-SIGNATURE-MISSING", "Missing Stripe signature.", 400);
   }
 
   let event: Stripe.Event;
@@ -115,7 +119,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error(error);
 
-    return NextResponse.json({ error: "Invalid Stripe webhook signature." }, { status: 400 });
+    return errorResponse("WEBHOOK-SIGNATURE-INVALID", "Invalid Stripe webhook signature.", 400);
   }
 
   try {
@@ -131,6 +135,6 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error(error);
 
-    return NextResponse.json({ error: "Webhook handling failed." }, { status: 500 });
+    return errorResponse("WEBHOOK-HANDLING-FAILED", "Webhook handling failed.", 500);
   }
 }

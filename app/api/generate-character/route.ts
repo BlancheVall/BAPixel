@@ -37,6 +37,10 @@ const TEMPLATE_STYLE_REFERENCE_FILES = [
   "147.png",
 ];
 
+function errorResponse(code: string, message: string, status: number) {
+  return NextResponse.json({ code, error: message }, { status });
+}
+
 type OpenAITextPart = {
   type: "input_text";
   text: string;
@@ -438,7 +442,7 @@ export async function POST(req: NextRequest) {
     const sessionUser = await getSessionUser(req);
 
     if (!sessionUser) {
-      return NextResponse.json({ error: "Please log in before generating an image." }, { status: 401 });
+      return errorResponse("GEN-AUTH-401", "Please log in before generating an image.", 401);
     }
 
     const userLimit = checkRateLimit({
@@ -449,7 +453,7 @@ export async function POST(req: NextRequest) {
 
     if (!userLimit.allowed) {
       return NextResponse.json(
-        { error: "Too many generations. Please try again later." },
+         { code: "GEN-RATE-USER", error: "Too many generations. Please try again later." },
         { status: 429 },
       );
     }
@@ -462,14 +466,14 @@ export async function POST(req: NextRequest) {
 
     if (!ipLimit.allowed) {
       return NextResponse.json(
-        { error: "Too many requests from this network. Please try again later." },
+         { code: "GEN-RATE-IP", error: "Too many requests from this network. Please try again later." },
         { status: 429 },
       );
     }
 
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json(
-        { error: "Please configure OPENAI_API_KEY in .env.local first." },
+         { code: "GEN-CONFIG-OPENAI", error: "Please configure OPENAI_API_KEY in .env.local first." },
         { status: 500 },
       );
     }
@@ -489,18 +493,18 @@ export async function POST(req: NextRequest) {
 
     if (!usesStyleTemplate && (!process.env.RUNPOD_API_KEY || !process.env.RUNPOD_ENDPOINT_ID)) {
       return NextResponse.json(
-        { error: "Please configure RUNPOD_API_KEY and RUNPOD_ENDPOINT_ID in .env.local first." },
+         { code: "GEN-CONFIG-RUNPOD", error: "Please configure RUNPOD_API_KEY and RUNPOD_ENDPOINT_ID in .env.local first." },
         { status: 500 },
       );
     }
 
     if (sessionUser.points < generationCost) {
-      return NextResponse.json({ error: "Not enough Points to generate an image." }, { status: 402 });
+      return errorResponse("GEN-POINTS-402", "Not enough Points to generate an image.", 402);
     }
 
     if (activeGenerationUsers.has(sessionUser.id)) {
       return NextResponse.json(
-        { error: "A generation is already running for this account. Please wait for it to finish." },
+         { code: "GEN-LOCK-409", error: "A generation is already running for this account. Please wait for it to finish." },
         { status: 409 },
       );
     }
@@ -519,14 +523,14 @@ export async function POST(req: NextRequest) {
 
     if (existingJob) {
       return NextResponse.json(
-        { error: "A generation is already running for this account. Please wait for it to finish." },
+         { code: "GEN-LOCK-409", error: "A generation is already running for this account. Please wait for it to finish." },
         { status: 409 },
       );
     }
 
     if (description.length > MAX_DESCRIPTION_LENGTH) {
       return NextResponse.json(
-        { error: `Character description is too long. Please keep it under ${MAX_DESCRIPTION_LENGTH} characters.` },
+         { code: "GEN-DESC-LONG", error: `Character description is too long. Please keep it under ${MAX_DESCRIPTION_LENGTH} characters.` },
         { status: 400 },
       );
     }
@@ -536,14 +540,14 @@ export async function POST(req: NextRequest) {
       getDataUrlByteLength(characterReferenceImage) > MAX_REFERENCE_IMAGE_BYTES
     ) {
       return NextResponse.json(
-        { error: "Character reference image is too large. Please upload an image under 10 MB." },
+         { code: "GEN-REF-LARGE", error: "Character reference image is too large. Please upload an image under 10 MB." },
         { status: 400 },
       );
     }
 
     if (!description && !characterReferenceImage) {
       return NextResponse.json(
-        { error: "Please enter a character description or upload a character reference image." },
+         { code: "GEN-EMPTY", error: "Please enter a character description or upload a character reference image." },
         { status: 400 },
       );
     }
@@ -685,7 +689,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (!billingResult) {
-      return NextResponse.json({ error: "Not enough Points to generate an image." }, { status: 402 });
+      return errorResponse("GEN-POINTS-402", "Not enough Points to generate an image.", 402);
     }
 
     return NextResponse.json({
@@ -711,17 +715,17 @@ export async function POST(req: NextRequest) {
 
     if (error instanceof Error && error.message === "REQUEST_TOO_LARGE") {
       return NextResponse.json(
-        { error: "Request is too large. Please use a smaller reference image." },
+         { code: "GEN-REQUEST-LARGE", error: "Request is too large. Please use a smaller reference image." },
         { status: 413 },
       );
     }
 
     if (error instanceof SyntaxError) {
-      return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+      return errorResponse("GEN-BODY-INVALID", "Invalid request body.", 400);
     }
 
     return NextResponse.json(
-      { error: "Generation failed. Please check your API key, account credits, or try again later." },
+       { code: "GEN-FAILED-500", error: "Generation failed. Please check your API key, account credits, or try again later." },
       { status: 500 },
     );
   } finally {

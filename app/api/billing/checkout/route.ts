@@ -5,12 +5,16 @@ import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 
+function errorResponse(code: string, error: string, status: number) {
+  return NextResponse.json({ code, error }, { status });
+}
+
 export async function POST(req: NextRequest) {
   try {
     const user = await getSessionUser(req);
 
     if (!user) {
-      return NextResponse.json({ error: "Please log in before recharging Points." }, { status: 401 });
+      return errorResponse("BILL-CHECKOUT-AUTH", "Please log in before recharging Points.", 401);
     }
 
     const body = await req.json();
@@ -18,7 +22,7 @@ export async function POST(req: NextRequest) {
     const pointPackage = getPointPackage(packageId);
 
     if (!pointPackage) {
-      return NextResponse.json({ error: "Unknown Point package." }, { status: 400 });
+      return errorResponse("BILL-CHECKOUT-PACKAGE", "Unknown Point package.", 400);
     }
 
     const purchase = await prisma.pointPurchase.create({
@@ -75,6 +79,6 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error(error);
 
-    return NextResponse.json({ error: "Unable to start checkout." }, { status: 500 });
+    return errorResponse("BILL-CHECKOUT-FAILED", "Unable to start checkout.", 500);
   }
 }
