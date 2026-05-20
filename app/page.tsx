@@ -2392,7 +2392,7 @@ export default function Home() {
                       </svg>
                     </button>
                     <div className="mt-3 flex flex-col gap-2">
-                      <div className="flex items-start justify-between gap-2">
+                      <div className="hidden">
                         <div>
                           <p className="line-clamp-1 text-sm font-bold text-[#fafafa]">
                             {item.title || item.description || (language === "zh" ? "未命名资产" : "Untitled Asset")}
