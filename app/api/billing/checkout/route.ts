@@ -39,6 +39,7 @@ export async function POST(req: NextRequest) {
     const stripe = getStripe();
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
+      payment_method_types: ["card", "alipay"],
       customer_email: user.email,
       client_reference_id: user.id,
       line_items: [
