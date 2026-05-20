@@ -1783,7 +1783,7 @@ export default function Home() {
                       value={description}
                       onChange={(event) => setDescription(event.target.value)}
                       placeholder={t.placeholder}
-                      className="min-h-[312px] w-full flex-1 resize-none rounded-lg border border-[#2a3142] bg-[#0b1020] p-4 text-base leading-7 text-[#fafafa] outline-none transition placeholder:text-[#647084] focus:border-[#2dd4bf]"
+                      className="min-h-[224px] w-full flex-1 resize-none rounded-lg border border-[#2a3142] bg-[#0b1020] p-4 text-base leading-7 text-[#fafafa] outline-none transition placeholder:text-[#647084] focus:border-[#2dd4bf]"
                     />
                   </div>
 
@@ -1800,7 +1800,7 @@ export default function Home() {
                         type="button"
                         aria-label={t.noTemplate}
                         onClick={() => setStyleTemplate("none")}
-                        className={`flex min-h-44 flex-col rounded-lg border p-4 text-left transition ${
+                        className={`flex min-h-36 flex-col rounded-lg border p-4 text-left transition ${
                           styleTemplate === "none"
                             ? "border-[#d99a2b] bg-[#211a12] shadow-[0_0_0_1px_rgba(217,154,43,0.22)]"
                             : "border-[#2a3142] bg-[#080b13] hover:border-[#2a3142]"
@@ -1819,7 +1819,7 @@ export default function Home() {
                               width={128}
                               height={128}
                               unoptimized
-                              className="h-32 w-24 max-w-full object-contain"
+                              className="h-24 w-20 max-w-full object-contain"
                               style={{ imageRendering: "pixelated" }}
                             />
                           </div>
@@ -1831,7 +1831,7 @@ export default function Home() {
                           type="button"
                           aria-label={option[language]}
                           onClick={() => setStyleTemplate(option.id)}
-                          className={`flex min-h-44 flex-col rounded-lg border p-4 text-left transition ${
+                          className={`flex min-h-36 flex-col rounded-lg border p-4 text-left transition ${
                             styleTemplate === option.id
                               ? "border-[#d99a2b] bg-[#211a12] shadow-[0_0_0_1px_rgba(217,154,43,0.22)]"
                               : "border-[#2a3142] bg-[#080b13] hover:border-[#2a3142]"
@@ -1845,7 +1845,7 @@ export default function Home() {
                                 width={128}
                                 height={128}
                                 unoptimized
-                                className="mx-auto h-24 w-24 max-w-full rounded object-contain"
+                                className="mx-auto h-20 w-20 max-w-full rounded object-contain"
                                 style={{ imageRendering: "pixelated" }}
                               />
                             </div>
@@ -1901,7 +1901,7 @@ export default function Home() {
                           width={64}
                           height={64}
                           unoptimized
-                          className="h-16 w-16 rounded-md border border-[#2a3142] object-cover"
+                          className="h-12 w-12 rounded-md border border-[#2a3142] object-cover"
                         />
                       )}
                     </div>
@@ -1912,7 +1912,7 @@ export default function Home() {
                       {t.generationSettings}
                     </p>
 
-                    <div className="mt-3 flex flex-col gap-4">
+                    <div className="mt-3 flex flex-col gap-3">
                       <div>
                         <p className="mb-2 text-xs font-semibold text-[#8f9aaf]">{t.direction}</p>
                         <div className="grid grid-cols-4 gap-2">
@@ -1921,7 +1921,7 @@ export default function Home() {
                               key={option.id}
                               type="button"
                               onClick={() => setDirection(option.id)}
-                              className={`rounded-md border px-2 py-2 text-xs font-bold transition ${
+                              className={`rounded-md border px-2 py-1.5 text-xs font-bold transition ${
                                 direction === option.id
                                   ? "border-[#d99a2b] bg-[#211a12] text-[#f0b84f]"
                                   : "border-[#2a3142] bg-[#080b13] text-[#d9deea] hover:border-[#2a3142]"
@@ -1941,7 +1941,7 @@ export default function Home() {
                               key={size}
                               type="button"
                               onClick={() => setOutputSize(size)}
-                              className={`rounded-md border px-3 py-2 text-xs font-bold transition ${
+                              className={`rounded-md border px-3 py-1.5 text-xs font-bold transition ${
                                 outputSize === size
                                   ? "border-[#d99a2b] bg-[#211a12] text-[#f0b84f]"
                                   : "border-[#2a3142] bg-[#080b13] text-[#d9deea] hover:border-[#2a3142]"
@@ -1974,7 +1974,7 @@ export default function Home() {
                             value={seed}
                             onChange={(event) => setSeed(event.target.value.replace(/\D/g, "").slice(0, 10))}
                             placeholder={t.randomSeed}
-                            className="mt-2 h-9 w-full rounded-md border border-[#2a3142] bg-[#080b13] px-2 text-xs text-[#d9deea] outline-none placeholder:text-[#647084] focus:border-[#2dd4bf]"
+                            className="mt-2 h-8 w-full rounded-md border border-[#2a3142] bg-[#080b13] px-2 text-xs text-[#d9deea] outline-none placeholder:text-[#647084] focus:border-[#2dd4bf]"
                           />
                         </label>
                       </div>
