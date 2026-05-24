@@ -183,8 +183,12 @@ function buildPixelPrompt(
   options: GenerationOptions,
 ) {
   if (!usesStyleTemplate) {
+    const subjectTags = characterTags || "fantasy RPG character";
+
     return [
       "(masterpiece, top quality, best quality)",
+      `(${subjectTags}:1.25)`,
+      subjectTags,
       "pixel",
       "pixel art",
       "game asset",
@@ -195,7 +199,6 @@ function buildPixelPrompt(
       "chunky pixels",
       "limited color palette",
       "hard edges",
-      characterTags || "fantasy RPG character",
     ]
       .filter(Boolean)
       .join(", ");
@@ -256,6 +259,30 @@ function cleanSdTags(value: string) {
     .replace(/\s+/g, " ")
     .trim()
     .replace(/^,|,$/g, "")
+    .slice(0, 1200);
+}
+
+function mergeCharacterTags(description: string, generatedTags: string) {
+  const rawTags = cleanSdTags(description);
+  const combined = [rawTags, generatedTags]
+    .filter(Boolean)
+    .join(", ");
+  const seen = new Set<string>();
+
+  return combined
+    .split(",")
+    .map((tag) => tag.trim())
+    .filter((tag) => {
+      const key = tag.toLowerCase();
+
+      if (!tag || seen.has(key)) {
+        return false;
+      }
+
+      seen.add(key);
+      return true;
+    })
+    .join(", ")
     .slice(0, 1200);
 }
 
@@ -593,7 +620,7 @@ export async function POST(req: NextRequest) {
       ? usesReferenceImage
         ? await generateTemplateCharacterPromptWithChatGPT(description, characterReferenceImage)
         : description || "fantasy RPG character"
-      : await generateCharacterTagsWithChatGPT(description, characterReferenceImage);
+      : mergeCharacterTags(description, await generateCharacterTagsWithChatGPT(description, characterReferenceImage));
     const prompt = usesStyleTemplate
       ? buildOpenAITemplatePrompt(characterFeaturePrompt)
       : buildPixelPrompt(characterFeaturePrompt, false, generationOptions);
