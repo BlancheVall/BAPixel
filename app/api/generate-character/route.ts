@@ -187,11 +187,6 @@ function buildPixelPrompt(
 
     return [
       "(masterpiece, top quality, best quality)",
-      "(pixel:1.15)",
-      "(pixel art:1.15)",
-      "(chunky visible pixels:1.1)",
-      "(hard pixel edges:1.08)",
-      "(low-resolution sprite style:1.08)",
       "(full body:1.25)",
       "full body",
       `(${subjectTags}:1.25)`,
