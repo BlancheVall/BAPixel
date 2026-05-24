@@ -12,7 +12,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://bapixel.com";
+const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://bapixel.win";
 
 export const metadata: Metadata = {
   metadataBase: new URL(appUrl),

@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://bapixel.com";
+const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://bapixel.win";
 
 export default function robots(): MetadataRoute.Robots {
   return {

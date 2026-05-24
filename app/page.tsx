@@ -388,16 +388,25 @@ const copy = {
   },
 };
 
+function getInitialPrompt() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  return new URLSearchParams(window.location.search).get("prompt")?.slice(0, 500) || "";
+}
+
 export default function Home() {
+  const initialPrompt = getInitialPrompt();
   const [language, setLanguage] = useState<Language>("zh");
-  const [showLanding, setShowLanding] = useState(true);
+  const [showLanding, setShowLanding] = useState(!initialPrompt);
   const [activeModule, setActiveModule] = useState<Module>("character");
   const [styleTemplate, setStyleTemplate] = useState<StyleTemplate>("none");
   const [direction, setDirection] = useState<Direction>("screen_right");
   const [outputSize, setOutputSize] = useState<128 | 256 | 512>(128);
   const [styleStrength, setStyleStrength] = useState(0.5);
   const [seed, setSeed] = useState("");
-  const [description, setDescription] = useState("");
+  const [description, setDescription] = useState(initialPrompt);
   const [characterReferenceImage, setCharacterReferenceImage] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [generationImageApiUrl, setGenerationImageApiUrl] = useState("");
