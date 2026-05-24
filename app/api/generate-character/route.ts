@@ -187,6 +187,8 @@ function buildPixelPrompt(
 
     return [
       "(masterpiece, top quality, best quality)",
+      "(full body:1.25)",
+      "full body",
       `(${subjectTags}:1.25)`,
       subjectTags,
       "pixel",
