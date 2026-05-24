@@ -398,7 +398,7 @@ function getInitialPrompt() {
 
 export default function Home() {
   const initialPrompt = getInitialPrompt();
-  const [language, setLanguage] = useState<Language>("zh");
+  const [language, setLanguage] = useState<Language>("en");
   const [showLanding, setShowLanding] = useState(!initialPrompt);
   const [activeModule, setActiveModule] = useState<Module>("character");
   const [styleTemplate, setStyleTemplate] = useState<StyleTemplate>("none");
