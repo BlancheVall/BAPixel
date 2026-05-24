@@ -187,6 +187,11 @@ function buildPixelPrompt(
 
     return [
       "(masterpiece, top quality, best quality)",
+      "(pixel:1.35)",
+      "(pixel art:1.35)",
+      "(chunky visible pixels:1.25)",
+      "(hard pixel edges:1.2)",
+      "(low-resolution sprite style:1.2)",
       "(full body:1.25)",
       "full body",
       `(${subjectTags}:1.25)`,
@@ -199,6 +204,8 @@ function buildPixelPrompt(
       options.assetType === "scene" ? "" : getDirectionPrompt(options.direction),
       "clean silhouette",
       "chunky pixels",
+      "visible square pixel blocks",
+      "nearest-neighbor scaling",
       "limited color palette",
       "hard edges",
     ]
